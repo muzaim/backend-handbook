@@ -1,131 +1,141 @@
 # High-Throughput Backend Handbook
 
-Welcome to the **High-Throughput Backend Handbook**. This repository is an educational, practical, and junior-friendly reference for mastering core concepts in high-throughput distributed backend architectures.
+Welcome to the **High-Throughput Backend Handbook**. This repository is designed as a comprehensive, practical, and junior-friendly guide to mastering core concepts of large-scale backend engineering and high-throughput distributed systems.
 
-Rather than presenting dry theory, each guide provides real-world system scenarios, technical explanations of why a concept is needed under heavy load, trade-offs (pros and cons), clean ASCII diagrams, core implementation logic in Go (Golang), decision frameworks (when to use vs when not to use), key observability metrics, real-world industry case studies, and production gotchas.
+Here, we cover not just theory, but real-world industrial scenarios, why a technique is mandatory during severe traffic surges, architectural trade-offs (pros and cons), clean ASCII flow diagrams, production-grade Go (Golang) implementation snippets, when to use vs when to avoid guidelines, key observability metrics, real-world case studies, and common production gotchas.
 
 > Read the Indonesian version: [Versi Bahasa Indonesia](README.md)
 
 ---
 
-## Curriculum Roadmap (8 Architectural Categories)
+## Curriculum Roadmap (9 Architectural Layers - 35 Topics)
 
-All topics in this repository are categorized into 8 primary architectural folders, mapping directly to the journey of an inbound request from the network boundary to persistent data, infrastructure, software tools, and production observability:
+All curriculum modules are categorized into 9 primary directories reflecting the lifecycle of a request from system scaling foundations, external ingress, data acceleration, operational infrastructure, concrete tooling, to production observability:
 
 ```
 +-------------------------------------------------------------------------+
-| traffic-and-edge/ (Network Perimeters & Ingress Traffic)                |
-| 1. Reverse Proxies       2. API Gateways                                |
-| 3. Load Balancing        4. Rate Limiting                               |
+| architecture-and-scaling/ (System Design & Scaling Foundations)         |
+| 1. Horizontal Scaling    2. Vertical Scaling                            |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
-| performance-and-data/ (High-Speed Data Acceleration)                    |
-| 5. Caching                                                              |
+| traffic-and-edge/ (Ingress Gateway & Traffic Control)                   |
+| 3. Reverse Proxies       4. API Gateways                                |
+| 5. Load Balancing        6. Rate Limiting                               |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
-| resilience-and-fault-tolerance/ (Failure Isolation & Stability)         |
-| 6. Timeouts              7. Retries                                     |
-| 8. Exponential Backoff   9. Circuit Breakers                            |
-| 10. Idempotency                                                         |
+| performance-and-data/ (Acceleration & Fast Data Access)                 |
+| 7. Caching               8. Database Indexing    9. SQL vs NoSQL        |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
-| async-and-distributed-systems/ (Large-Scale Asynchronous Decoupling)    |
-| 11. Message Queues       12. Pub/Sub                                    |
-| 13. Event-Driven Arch    14. Distributed Transactions                   |
-| 15. Saga Pattern                                                        |
+| resilience-and-fault-tolerance/ (Reliability & Fault Handling)          |
+| 10. Timeouts             11. Retries             12. Exp. Backoff       |
+| 13. Circuit Breakers     14. Idempotency                                |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
-| infrastructure-and-delivery/ (Operational Foundations & Release)        |
-| 16. Service Discovery    17. CI/CD                                      |
+| async-and-distributed-systems/ (Large-Scale Communication)               |
+| 15. Message Queues       16. Pub/Sub             17. Event-Driven Arch  |
+| 18. Dist. Transactions   19. Saga Pattern                               |
++-------------------------------------------------------------------------+
+                                    |
+                                    v
++-------------------------------------------------------------------------+
+| infrastructure-and-delivery/ (Operational Foundations & Delivery)       |
+| 20. Service Discovery    21. CI/CD                                      |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | protocols-and-realtime/ (High-Performance Protocols & Real-Time)        |
-| 18. gRPC & Protobuf      19. WebSockets & SSE                           |
-| 20. CDN & Edge Caching                                                  |
+| 22. gRPC & Protobuf      23. WebSockets & SSE    24. CDN & Edge Caching |
+| 25. Webhooks                                                            |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
-| tools-and-technologies/ (Concrete High-Throughput Software Tools)       |
-| 21. Docker               22. Kubernetes                                 |
-| 23. Redis                24. Apache Kafka                               |
-| 25. PostgreSQL           26. NGINX                                      |
+| tools-and-technologies/ (Concrete High-Throughput Software)             |
+| 26. Docker               27. Kubernetes          28. Redis              |
+| 29. Apache Kafka         30. PostgreSQL          31. NGINX              |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
-| monitoring-and-observability/ (Telemetry, Metrics & Incident Response)  |
-| 27. Prometheus           28. Grafana                                    |
-| 29. OpenTelemetry        30. Centralized Logging                        |
+| monitoring-and-observability/ (Production Monitoring & Reliability)     |
+| 32. Prometheus           33. Grafana             34. OpenTelemetry      |
+| 35. Centralized Logging                                                 |
 +-------------------------------------------------------------------------+
 ```
 
 ---
 
-## Complete Topic Index
+## Complete Topic Directory
 
-Each topic folder includes bilingual documentation: `README.md` (Indonesian) and `README.en.md` (English). All backend implementation logic is written in **Go (Golang)**.
+Every folder contains bilingual documentation: `README.md` (Indonesian) and `README.en.md` (English). All backend implementation examples are written in **Go (Golang)**.
 
-### 1. Traffic & Edge (`traffic-and-edge/`)
-- [Reverse Proxies](traffic-and-edge/reverse-proxies/README.en.md) - Shielding and mediating between clients and upstream backend servers.
-- [API Gateways](traffic-and-edge/api-gateways/README.en.md) - Single entry point for microservices routing, authentication, and orchestration.
-- [Load Balancing](traffic-and-edge/load-balancing/README.en.md) - Distributing traffic across multiple server instances to prevent overload.
-- [Rate Limiting](traffic-and-edge/rate-limiting/README.en.md) - Controlling traffic throughput to prevent service abuse and system exhaustion.
+### 1. Architecture & Scaling (`architecture-and-scaling/`)
+- [Horizontal Scaling](architecture-and-scaling/horizontal-scaling/README.en.md) - Elastic capacity expansion by adding stateless worker nodes in parallel.
+- [Vertical Scaling](architecture-and-scaling/vertical-scaling/README.en.md) - Enhancing compute throughput (CPU, RAM, NVMe) on a single physical host.
 
-### 2. Performance & Data Access (`performance-and-data/`)
-- [Caching](performance-and-data/caching/README.en.md) - High-speed temporary data storage to eliminate redundant database trips.
+### 2. Traffic & Edge (`traffic-and-edge/`)
+- [Reverse Proxies](traffic-and-edge/reverse-proxies/README.en.md) - Intermediary protecting and routing traffic to internal backend servers.
+- [API Gateways](traffic-and-edge/api-gateways/README.en.md) - Single entry point orchestrating, authenticating, and routing microservice APIs.
+- [Load Balancing](traffic-and-edge/load-balancing/README.en.md) - Distributing traffic across server pools to avoid hotspot failures.
+- [Rate Limiting](traffic-and-edge/rate-limiting/README.en.md) - Traffic throttling to shield internal services from abuse and overloads.
 
-### 3. Resilience & Fault Tolerance (`resilience-and-fault-tolerance/`)
-- [Timeouts](resilience-and-fault-tolerance/timeouts/README.en.md) - Enforcing deadlines to stop unresponsive requests from hogging threads and sockets.
-- [Retries](resilience-and-fault-tolerance/retries/README.en.md) - Automatically re-attempting failed operations to overcome transient network glitches.
-- [Exponential Backoff](resilience-and-fault-tolerance/exponential-backoff/README.en.md) - Progressively backing off retry intervals with randomized jitter.
-- [Circuit Breakers](resilience-and-fault-tolerance/circuit-breakers/README.en.md) - Halting incoming requests to failing downstream services to give them breathing room.
-- [Idempotency](resilience-and-fault-tolerance/idempotency/README.en.md) - Ensuring duplicate operations produce the exact same final system state.
+### 3. Performance & Data Access (`performance-and-data/`)
+- [Caching](performance-and-data/caching/README.en.md) - High-speed in-memory data caching to drastically reduce database query latency.
+- [Database Indexing](performance-and-data/database-indexing/README.en.md) - Auxiliary tree structures transforming $O(N)$ table scans into $O(\log N)$ lookups.
+- [SQL vs NoSQL](performance-and-data/sql-vs-nosql/README.en.md) - Comparing transactional consistency (ACID) against horizontal scale-out and flexible schemas.
 
-### 4. Asynchronous & Distributed Systems (`async-and-distributed-systems/`)
-- [Message Queues](async-and-distributed-systems/message-queues/README.en.md) - Point-to-point asynchronous messaging for traffic smoothing and decoupling.
-- [Pub/Sub](async-and-distributed-systems/pub-sub/README.en.md) - One-to-many event broadcasting pattern using topic subscriptions.
-- [Event-Driven Architecture](async-and-distributed-systems/event-driven-architecture/README.en.md) - Building decoupled reactive systems responding to state events.
-- [Distributed Transactions](async-and-distributed-systems/distributed-transactions/README.en.md) - Understanding ACID limitations across isolated databases.
-- [Saga Pattern](async-and-distributed-systems/saga-pattern/README.en.md) - Coordinating cross-service business transactions through local transactions and compensation.
+### 4. Resilience & Fault Tolerance (`resilience-and-fault-tolerance/`)
+- [Timeouts](resilience-and-fault-tolerance/timeouts/README.en.md) - Enforcing upper latency bounds to prevent runaway thread starvation.
+- [Retries](resilience-and-fault-tolerance/retries/README.en.md) - Automated re-execution to overcome transient network and socket disruptions.
+- [Exponential Backoff](resilience-and-fault-tolerance/exponential-backoff/README.en.md) - Exponentially decaying retry intervals with jitter to mitigate thundering herds.
+- [Circuit Breakers](resilience-and-fault-tolerance/circuit-breakers/README.en.md) - Fast-failing traffic to failing downstream dependencies to enable recovery.
+- [Idempotency](resilience-and-fault-tolerance/idempotency/README.en.md) - Guaranteeing that duplicated requests yield identical system side-effects.
 
-### 5. Infrastructure & Delivery (`infrastructure-and-delivery/`)
-- [Service Discovery](infrastructure-and-delivery/service-discovery/README.en.md) - Dynamic tracking of dynamic container IP addresses and ports.
-- [CI/CD](infrastructure-and-delivery/ci-cd/README.en.md) - Automated integration, testing, and progressive release pipelines.
+### 5. Asynchronous & Distributed Systems (`async-and-distributed-systems/`)
+- [Message Queues](async-and-distributed-systems/message-queues/README.en.md) - Point-to-point asynchronous messaging buffers absorbing traffic spikes.
+- [Pub/Sub](async-and-distributed-systems/pub-sub/README.en.md) - Decoupled one-to-many event broadcast distribution by topic.
+- [Event-Driven Architecture](async-and-distributed-systems/event-driven-architecture/README.en.md) - Systems communicating through emitted state changes and decoupled consumers.
+- [Distributed Transactions](async-and-distributed-systems/distributed-transactions/README.en.md) - Data consistency challenges across distributed databases (and their limits).
+- [Saga Pattern](async-and-distributed-systems/saga-pattern/README.en.md) - Managing distributed long-running business workflows through compensating actions.
 
-### 6. Protocols & Real-Time (`protocols-and-realtime/`)
-- [gRPC & Protocol Buffers](protocols-and-realtime/grpc-and-protobuf/README.en.md) - Binary RPC communication over HTTP/2 for high-throughput inter-service traffic.
-- [WebSockets & Server-Sent Events](protocols-and-realtime/websockets-and-sse/README.en.md) - Bidirectional real-time channels and low-latency server-sent event streams.
-- [CDN & Edge Caching](protocols-and-realtime/cdn-and-edge-caching/README.en.md) - Globally distributed edge caching and static asset acceleration.
+### 6. Infrastructure & Delivery (`infrastructure-and-delivery/`)
+- [Service Discovery](infrastructure-and-delivery/service-discovery/README.en.md) - Dynamic tracking enabling microservices to locate peer IPs and ports.
+- [CI/CD](infrastructure-and-delivery/ci-cd/README.en.md) - Automated integration, testing, and progressive production delivery pipelines.
 
-### 7. Tools & Technologies (`tools-and-technologies/`)
-- [Docker](tools-and-technologies/docker/README.en.md) - Containerizing applications for portable, isolated, and reproducible execution environments.
-- [Kubernetes](tools-and-technologies/kubernetes/README.en.md) - Container orchestration platform for self-healing, scaling, and rolling deployments.
-- [Redis](tools-and-technologies/redis/README.en.md) - Ultra-fast in-memory key-value data store for caching, distributed locking, and real-time queues.
-- [Apache Kafka](tools-and-technologies/kafka/README.en.md) - Distributed commit log event streaming platform capable of handling millions of events per second.
-- [PostgreSQL](tools-and-technologies/postgresql/README.en.md) - Enterprise relational database engine featuring MVCC concurrency, WAL durability, and ACID guarantees.
-- [NGINX](tools-and-technologies/nginx/README.en.md) - High-performance asynchronous reverse proxy, web server, and SSL termination engine.
+### 7. Protocols & Real-Time (`protocols-and-realtime/`)
+- [gRPC & Protocol Buffers](protocols-and-realtime/grpc-and-protobuf/README.en.md) - Binary HTTP/2 RPC protocol delivering high-speed inter-service communication.
+- [WebSockets & Server-Sent Events](protocols-and-realtime/websockets-and-sse/README.en.md) - Full-duplex persistent connections and low-latency server event streaming.
+- [CDN & Edge Caching](protocols-and-realtime/cdn-and-edge-caching/README.en.md) - Terminating and serving static assets and dynamic caches closest to end users.
+- [Webhooks](protocols-and-realtime/webhooks/README.en.md) - Event-driven HTTP push callbacks (*Reverse API*) secured with cryptographic HMAC signatures.
 
-### 8. Monitoring & Observability (`monitoring-and-observability/`)
-- [Prometheus](monitoring-and-observability/prometheus/README.en.md) - Pull-based time-series metrics monitoring system with real-time PromQL evaluation.
-- [Grafana](monitoring-and-observability/grafana/README.en.md) - Operational visualization command center (Single Pane of Glass) for metrics, logs, and traces.
-- [OpenTelemetry](monitoring-and-observability/opentelemetry/README.en.md) - Industry-standard observability framework for distributed tracing and context propagation.
-- [Centralized Logging](monitoring-and-observability/centralized-logging/README.en.md) - High-throughput structured JSON log aggregation using Grafana Loki / Elasticsearch.
+### 8. Tools & Technologies (`tools-and-technologies/`)
+- [Docker](tools-and-technologies/docker/README.en.md) - Application containerization ensuring consistent, isolated runtime environments.
+- [Kubernetes](tools-and-technologies/kubernetes/README.en.md) - Large-scale container orchestration for automated self-healing, scaling, and rollouts.
+- [Redis](tools-and-technologies/redis/README.en.md) - In-memory key-value data store for low-latency caching, distributed locking, and queues.
+- [Apache Kafka](tools-and-technologies/kafka/README.en.md) - Distributed append-only log streaming platform handling millions of events/sec.
+- [PostgreSQL](tools-and-technologies/postgresql/README.en.md) - Enterprise relational database engine featuring MVCC concurrency and strict ACID durability.
+- [NGINX](tools-and-technologies/nginx/README.en.md) - Asynchronous event-driven web server and reverse proxy for high-concurrency buffering and TLS termination.
+
+### 9. Monitoring & Observability (`monitoring-and-observability/`)
+- [Prometheus](monitoring-and-observability/prometheus/README.en.md) - Pull-based time-series metrics monitoring with real-time PromQL querying.
+- [Grafana](monitoring-and-observability/grafana/README.en.md) - Unified operational dashboarding (Single Pane of Glass) across metrics, logs, and traces.
+- [OpenTelemetry](monitoring-and-observability/opentelemetry/README.en.md) - Universal vendor-neutral standard for distributed tracing and context propagation.
+- [Centralized Logging](monitoring-and-observability/centralized-logging/README.en.md) - Large-scale structured JSON log aggregation and search using Grafana Loki / Elasticsearch.
 
 ---
 
-## Learning Recommendations
+## Study Guide
 
-1. **Follow the category path**: Progressing sequentially from `traffic-and-edge` through `tools-and-technologies` and `monitoring-and-observability` builds an end-to-end mental model.
-2. **Review Trade-offs and Gotchas**: Every architectural solution introduces operational complexity; there are no silver bullets.
-3. **Anchor in real-world scenarios**: Each guide begins with an industry-grade system scenario to contextualize why the technology is mandatory under extreme traffic load.
+1. **Follow the Layer Hierarchy**: We recommend reading sequentially starting from architectural foundations (`architecture-and-scaling`), outer edge ingress (`traffic-and-edge`), data access, resilience, asynchronous messaging, delivery, protocols, tools, and finally observability (`monitoring-and-observability`).
+2. **Pay Close Attention to Trade-offs & Gotchas**: In distributed architecture, there are no perfect solutions—only strategic trade-offs.
+3. **Understand the Real-World Scenario**: Every topic begins with an industrial production scenario demonstrating precisely why that pattern is indispensable when traffic surges.
