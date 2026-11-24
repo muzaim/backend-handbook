@@ -3,38 +3,42 @@
 ## 1. Skenario Sistem Nyata
 
 Dalam arsitektur e-commerce berbasis microservices skala besar, sistem dipecah menjadi puluhan service backend terpisah di jaringan privat:
-- `Auth Service` (port 4001)
-- `Product Catalog Service` (port 4002)
-- `Order Service` (port 4003)
-- `Payment Service` (port 4004)
-- `Notification Service` (port 4005)
+
+-   `Auth Service` (port 4001)
+-   `Product Catalog Service` (port 4002)
+-   `Order Service` (port 4003)
+-   `Payment Service` (port 4004)
+-   `Notification Service` (port 4005)
 
 Jika sistem ini langsung diakses oleh aplikasi mobile (iOS dan Android):
-- Aplikasi mobile harus menyimpan dan mengetahui 5 URL/IP berbeda. Jika struktur internal service dipecah atau port berganti, aplikasi mobile harus di-update dan di-submit ulang ke App Store/Play Store.
-- Setiap service harus mengimplementasikan logika verifikasi JWT, CORS, rate limiting, dan SSL certificate sendiri-sendiri secara berulang (*code duplication*).
-- Untuk menampilkan satu layar checkout belanja, aplikasi mobile harus melakukan 4 panggilan HTTP terpisah melalui jaringan seluler yang lambat (*network chattiness*).
+
+-   Aplikasi mobile harus menyimpan dan mengetahui 5 URL/IP berbeda. Jika struktur internal service dipecah atau port berganti, aplikasi mobile harus di-update dan di-submit ulang ke App Store/Play Store.
+-   Setiap service harus mengimplementasikan logika verifikasi JWT, CORS, rate limiting, dan SSL certificate sendiri-sendiri secara berulang (_code duplication_).
+-   Untuk menampilkan satu layar checkout belanja, aplikasi mobile harus melakukan 4 panggilan HTTP terpisah melalui jaringan seluler yang lambat (_network chattiness_).
 
 **Solusi dengan API Gateway (misal: Kong / KrakenD):**
-Kamu menempatkan satu API Gateway di alamat publik `https://api.toko.com`. Aplikasi mobile hanya perlu berbicara ke satu endpoint ini. Gateway memverifikasi JWT token pengguna sekali saja di depan, menyaring rate limit per client, mengarahkan `/api/v1/orders` ke internal `http://order-service:4003`, dan bahkan dapat menggabungkan (*aggregate*) respon dari beberapa service menjadi satu JSON response ringkas ke mobile app.
+Kamu menempatkan satu API Gateway di alamat publik `https://api.toko.com`. Aplikasi mobile hanya perlu berbicara ke satu endpoint ini. Gateway memverifikasi JWT token pengguna sekali saja di depan, menyaring rate limit per client, mengarahkan `/api/v1/orders` ke internal `http://order-service:4003`, dan bahkan dapat menggabungkan (_aggregate_) respon dari beberapa service menjadi satu JSON response ringkas ke mobile app.
 
 ## 2. Apa Itu dan Buat Apa?
 
-API Gateway adalah komponen arsitektur yang bertindak sebagai pintu gerbang tunggal (*single point of entry*) untuk seluruh client (aplikasi mobile, web SPA, partner pihak ketiga) yang ingin mengakses sistem backend berbasis microservices.
+API Gateway adalah komponen arsitektur yang bertindak sebagai pintu gerbang tunggal (_single point of entry_) untuk seluruh client (aplikasi mobile, web SPA, partner pihak ketiga) yang ingin mengakses sistem backend berbasis microservices.
 
 Jika reverse proxy lebih berfokus pada layer jaringan (TCP/HTTP, SSL, caching statis), API Gateway beroperasi pada layer aplikasi dan logika bisnis API:
-- **Routing & Path Rewriting**: Memetakan `/users/*` ke User Service dan `/orders/*` ke Order Service.
-- **Autentikasi & Otorisasi Terpusat**: Memverifikasi JWT (JSON Web Token) atau API Key di gateway, sehingga service di belakangnya tidak perlu berulang kali mengecek token.
-- **Request Aggregation (BFF - Backend for Frontend)**: Menggabungkan data dari 3 microservices berbeda dalam satu kali panggilan HTTP dari mobile app.
-- **Rate Limiting per Pengguna/Tier**: Membatasi kuota request berdasarkan akun pelanggan (Free vs Premium).
+
+-   **Routing & Path Rewriting**: Memetakan `/users/*` ke User Service dan `/orders/*` ke Order Service.
+-   **Autentikasi & Otorisasi Terpusat**: Memverifikasi JWT (JSON Web Token) atau API Key di gateway, sehingga service di belakangnya tidak perlu berulang kali mengecek token.
+-   **Request Aggregation (BFF - Backend for Frontend)**: Menggabungkan data dari 3 microservices berbeda dalam satu kali panggilan HTTP dari mobile app.
+-   **Rate Limiting per Pengguna/Tier**: Membatasi kuota request berdasarkan akun pelanggan (Free vs Premium).
 
 Contoh software populer: Kong, Apache APISIX, KrakenD, Spring Cloud Gateway, AWS API Gateway.
 
-## 3. Kenapa Harus Pakai Ini di High-Throughput?
+## 3. Kenapa Harus Pakai Ini ?
 
 Tanpa API Gateway, aplikasi mobile atau frontend web harus memanggil puluhan alamat microservice secara langsung melalui internet:
-- **Latensi jaringan seluler**: Melakukan 10 panggilan HTTP serial dari smartphone di jaringan 4G/5G akan membuat UI aplikasi terasa sangat lambat (*network round-trip penalty*).
-- **Kerentanan keamanan**: Seluruh microservice internal harus memiliki IP publik dan membuka port ke internet.
-- **Duplikasi kode cross-cutting**: Setiap tim developer harus menulis ulang kode verifikasi token JWT, logging request, dan CORS di setiap service.
+
+-   **Latensi jaringan seluler**: Melakukan 10 panggilan HTTP serial dari smartphone di jaringan 4G/5G akan membuat UI aplikasi terasa sangat lambat (_network round-trip penalty_).
+-   **Kerentanan keamanan**: Seluruh microservice internal harus memiliki IP publik dan membuka port ke internet.
+-   **Duplikasi kode cross-cutting**: Setiap tim developer harus menulis ulang kode verifikasi token JWT, logging request, dan CORS di setiap service.
 
 Dengan API Gateway, client cukup melakukan satu panggilan cepat, dan gateway (yang berada di jaringan privat berkecepatan tinggi) yang melakukan orkestrasi internal dengan latensi sub-milidetik.
 
@@ -104,39 +108,43 @@ func GatewayMiddlewarePipeline(targetServiceURL string) http.Handler {
 ## 6. Kelebihan dan Kekurangan (Trade-offs)
 
 ### Kelebihan
-- **Menyederhanakan client**: Client hanya perlu tahu satu domain API publik.
-- **Sentralisasi cross-cutting concerns**: Autentikasi, rate limit, logging, dan metrik ditangani di satu tempat.
-- **Protokol internal bebas**: Gateway bisa menerima HTTP/REST dari luar, tetapi berkomunikasi via gRPC berkecepatan tinggi ke microservice internal.
+
+-   **Menyederhanakan client**: Client hanya perlu tahu satu domain API publik.
+-   **Sentralisasi cross-cutting concerns**: Autentikasi, rate limit, logging, dan metrik ditangani di satu tempat.
+-   **Protokol internal bebas**: Gateway bisa menerima HTTP/REST dari luar, tetapi berkomunikasi via gRPC berkecepatan tinggi ke microservice internal.
 
 ### Kekurangan
-- **Bottleneck performa**: Semua request melewati gateway; jika gateway salah konfigurasi, seluruh ekosistem melambat.
-- **Penyatuan kegagalan (Single Point of Failure)**: Gateway mati berarti seluruh aplikasi lumpuh total.
-- **Risiko logika bisnis berlebihan (Smart Gateway Trap)**: Tim sering tergoda menaruh logika bisnis kompleks di gateway hingga gateway menjadi "monolith baru".
+
+-   **Bottleneck performa**: Semua request melewati gateway; jika gateway salah konfigurasi, seluruh ekosistem melambat.
+-   **Penyatuan kegagalan (Single Point of Failure)**: Gateway mati berarti seluruh aplikasi lumpuh total.
+-   **Risiko logika bisnis berlebihan (Smart Gateway Trap)**: Tim sering tergoda menaruh logika bisnis kompleks di gateway hingga gateway menjadi "monolith baru".
 
 ## 7. Kapan Harus Pakai vs Kapan Jangan Pakai
 
 ### Kapan Harus Pakai
-- Arsitektur berbasis Microservices dengan banyak domain service independen.
-- Sistem yang melayani berbagai jenis client dengan kebutuhan payload berbeda (Mobile App butuh payload kecil, Web butuh data lengkap).
-- API publik yang membebankan kuota pemakaian per API Key ke pihak ketiga.
+
+-   Arsitektur berbasis Microservices dengan banyak domain service independen.
+-   Sistem yang melayani berbagai jenis client dengan kebutuhan payload berbeda (Mobile App butuh payload kecil, Web butuh data lengkap).
+-   API publik yang membebankan kuota pemakaian per API Key ke pihak ketiga.
 
 ### Kapan Jangan Pakai
-- Arsitektur Monolith sederhana (cukup gunakan Reverse Proxy biasa seperti NGINX).
-- Tim kecil dengan traffic rendah di mana memelihara gateway cluster hanya menambah kerumitan infrastruktur (*premature complexity*).
+
+-   Arsitektur Monolith sederhana (cukup gunakan Reverse Proxy biasa seperti NGINX).
+-   Tim kecil dengan traffic rendah di mana memelihara gateway cluster hanya menambah kerumitan infrastruktur (_premature complexity_).
 
 ## 8. Metrik Kunci & Observabilitas (Monitoring Dashboard)
 
-- **`gateway_latency_seconds` (Histogram p50/p95/p99)**: Waktu pemrosesan internal gateway itu sendiri (di luar waktu tunggu upstream). Harus < 5 milidetik.
-- **`auth_verification_failures_total` (Counter)**: Lonjakan token invalid (bisa mengindikasikan serangan brute force atau issue sinkronisasi auth service).
-- **`upstream_service_errors_total{service="order-svc"}` (Counter)**: Error yang dikembalikan per masing-masing microservice hilir.
-- **`request_body_size_bytes` (Histogram)**: Memantau ukuran payload yang masuk agar tidak menghabiskan memory buffer gateway.
+-   **`gateway_latency_seconds` (Histogram p50/p95/p99)**: Waktu pemrosesan internal gateway itu sendiri (di luar waktu tunggu upstream). Harus < 5 milidetik.
+-   **`auth_verification_failures_total` (Counter)**: Lonjakan token invalid (bisa mengindikasikan serangan brute force atau issue sinkronisasi auth service).
+-   **`upstream_service_errors_total{service="order-svc"}` (Counter)**: Error yang dikembalikan per masing-masing microservice hilir.
+-   **`request_body_size_bytes` (Histogram)**: Memantau ukuran payload yang masuk agar tidak menghabiskan memory buffer gateway.
 
 ## 9. Studi Kasus Nyata di Industri
 
-- **Netflix (Zuul & Zuul 2)**: Netflix adalah pelopor konsep API Gateway di cloud. Mereka membangun **Zuul** untuk menangani miliaran request streaming dari ribuan tipe perangkat TV, smartphone, dan browser. Zuul bertindak sebagai filter dinamis untuk routing, A/B testing, Canary test routing, dan enkripsi.
-- **Kong (Berasal dari Mashape)**: Kong awalnya dibangun oleh Mashape untuk mengelola ribuan developer API. Berbasis OpenResty (NGINX + Lua), Kong menggunakan arsitektur plugin modular untuk menangani jutaan transaksi per detik dengan latensi gateway sub-milidetik.
+-   **Netflix (Zuul & Zuul 2)**: Netflix adalah pelopor konsep API Gateway di cloud. Mereka membangun **Zuul** untuk menangani miliaran request streaming dari ribuan tipe perangkat TV, smartphone, dan browser. Zuul bertindak sebagai filter dinamis untuk routing, A/B testing, Canary test routing, dan enkripsi.
+-   **Kong (Berasal dari Mashape)**: Kong awalnya dibangun oleh Mashape untuk mengelola ribuan developer API. Berbasis OpenResty (NGINX + Lua), Kong menggunakan arsitektur plugin modular untuk menangani jutaan transaksi per detik dengan latensi gateway sub-milidetik.
 
 ## 10. Fakta Menarik & Gotchas Production
 
-- **The Smart Gateway Anti-pattern**: Kesalahan fatal paling umum adalah menulis kode database query atau logika transaksi bisnis di dalam API Gateway. Gateway seharusnya hanya bertindak sebagai "duri pemindah rute dan satpam", bukan tempat komputasi bisnis.
-- **JWT Decoding CPU Bottleneck**: Di high-throughput (misal 50.000 req/sec), melakukan verifikasi signature kriptografi RSA/ECDSA pada setiap token JWT di gateway bisa menghabiskan 80% CPU. Solusinya: gunakan symmetric hashing yang efisien (HS256) atau cache status validitas token di memory gateway selama beberapa detik.
+-   **The Smart Gateway Anti-pattern**: Kesalahan fatal paling umum adalah menulis kode database query atau logika transaksi bisnis di dalam API Gateway. Gateway seharusnya hanya bertindak sebagai "duri pemindah rute dan satpam", bukan tempat komputasi bisnis.
+-   **JWT Decoding CPU Bottleneck**: Di high-throughput (misal 50.000 req/sec), melakukan verifikasi signature kriptografi RSA/ECDSA pada setiap token JWT di gateway bisa menghabiskan 80% CPU. Solusinya: gunakan symmetric hashing yang efisien (HS256) atau cache status validitas token di memory gateway selama beberapa detik.

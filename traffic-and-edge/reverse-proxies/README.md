@@ -5,34 +5,37 @@
 Pada arsitektur aplikasi web modern berskala besar, runtime backend Go atau Node.js biasanya berjalan di port internal (seperti `3000`) pada private network yang melayani ribuan request konkuren sekaligus.
 
 Jika server aplikasi langsung diekspos ke internet publik:
-- Setiap pengguna melakukan negosiasi enkripsi dan dekripsi HTTPS (*TLS handshake*) langsung ke runtime aplikasi, menghabiskan 30-40% siklus CPU hanya untuk operasi kriptografi alih-alih mengeksekusi logika bisnis database.
-- File aset statis (gambar produk, CSS, JavaScript bundle) harus dibaca dari disk oleh thread aplikasi backend, menyita connection pool dan alokasi memori.
-- Alamat IP asli server database dan backend terekspos ke publik, rentan terhadap port scanning dan serangan DDoS langsung.
+
+-   Setiap pengguna melakukan negosiasi enkripsi dan dekripsi HTTPS (_TLS handshake_) langsung ke runtime aplikasi, menghabiskan 30-40% siklus CPU hanya untuk operasi kriptografi alih-alih mengeksekusi logika bisnis database.
+-   File aset statis (gambar produk, CSS, JavaScript bundle) harus dibaca dari disk oleh thread aplikasi backend, menyita connection pool dan alokasi memori.
+-   Alamat IP asli server database dan backend terekspos ke publik, rentan terhadap port scanning dan serangan DDoS langsung.
 
 **Solusi dengan Reverse Proxy (misal: NGINX / Envoy):**
 Kamu menempatkan NGINX di port publik `80/443`. NGINX menangani terminasi SSL/TLS di edge jaringan, menyajikan aset statis langsung dari disk cache dengan kecepatan tinggi, mengompresi response dengan Gzip/Brotli, lalu meneruskan request HTTP murni yang bersih ke backend di `http://127.0.0.1:3000`. Alamat IP dan topologi internal backend tetap tersembunyi aman di jaringan privat.
 
 ## 2. Apa Itu dan Buat Apa?
 
-Reverse proxy adalah server perantara yang berada di depan satu atau lebih web server backend. Tugas utamanya adalah menerima request dari client (internet publik) dan meneruskannya (*forwarding*) ke server internal yang sesuai di jaringan privat.
+Reverse proxy adalah server perantara yang berada di depan satu atau lebih web server backend. Tugas utamanya adalah menerima request dari client (internet publik) dan meneruskannya (_forwarding_) ke server internal yang sesuai di jaringan privat.
 
 Fungsi utama reverse proxy:
-- **Menyembunyikan identitas backend**: Alamat IP asli server aplikasi internal tidak terekspos ke internet.
-- **SSL/TLS Termination**: Menangani enkripsi/dekripsi HTTPS sehingga server aplikasi di belakangnya cukup melayani HTTP biasa yang ringan.
-- **Kompresi data**: Mengompresi response (Gzip/Brotli) sebelum dikirim kembali ke client untuk menghemat bandwidth.
-- **Proteksi awal**: Menyaring trafik kotor atau serangan dasar sebelum menyentuh aplikasi backend.
+
+-   **Menyembunyikan identitas backend**: Alamat IP asli server aplikasi internal tidak terekspos ke internet.
+-   **SSL/TLS Termination**: Menangani enkripsi/dekripsi HTTPS sehingga server aplikasi di belakangnya cukup melayani HTTP biasa yang ringan.
+-   **Kompresi data**: Mengompresi response (Gzip/Brotli) sebelum dikirim kembali ke client untuk menghemat bandwidth.
+-   **Proteksi awal**: Menyaring trafik kotor atau serangan dasar sebelum menyentuh aplikasi backend.
 
 Contoh software populer: NGINX, HAProxy, Envoy, Traefik, Caddy.
 
-## 3. Kenapa Harus Pakai Ini di High-Throughput?
+## 3. Kenapa Harus Pakai Ini ?
 
-Ketika server melayani puluhan ribu request per detik, CPU server aplikasi (Node.js, Go, Python, Java) sangat mahal jika harus terbebani oleh *TLS Handshake* (proses enkripsi kriptografi) dan kompresi file statis. 
+Ketika server melayani puluhan ribu request per detik, CPU server aplikasi (Node.js, Go, Python, Java) sangat mahal jika harus terbebani oleh _TLS Handshake_ (proses enkripsi kriptografi) dan kompresi file statis.
 
 Jika server aplikasi langsung diekspos ke publik:
-- Setiap koneksi TCP yang lambat (*slowloris attack*) akan mengunci worker thread aplikasi backend hingga kehabisan memory.
-- Menambahkan atau mematikan server backend (*rolling update*) akan menyebabkan *downtime* karena client menyimpan IP server langsung.
 
-Dengan reverse proxy, koneksi luar ditangani oleh server C/C++ yang sangat efisien dalam menangani *event-driven network I/O*, membebaskan server aplikasi untuk murni mengeksekusi logika bisnis.
+-   Setiap koneksi TCP yang lambat (_slowloris attack_) akan mengunci worker thread aplikasi backend hingga kehabisan memory.
+-   Menambahkan atau mematikan server backend (_rolling update_) akan menyebabkan _downtime_ karena client menyimpan IP server langsung.
+
+Dengan reverse proxy, koneksi luar ditangani oleh server C/C++ yang sangat efisien dalam menangani _event-driven network I/O_, membebaskan server aplikasi untuk murni mengeksekusi logika bisnis.
 
 ## 4. Cara Kerjanya (Diagram Alur)
 
@@ -97,40 +100,45 @@ server {
 ## 6. Kelebihan dan Kekurangan (Trade-offs)
 
 ### Kelebihan
-- **Keamanan tinggi**: Backend tersembunyi di dalam private subnet / VPC.
-- **Efisiensi komputasi**: Offloading TLS dan static assets dari server aplikasi inti.
-- **Fleksibilitas deployment**: Server backend bisa di-restart atau diganti tanpa memutus endpoint publik.
+
+-   **Keamanan tinggi**: Backend tersembunyi di dalam private subnet / VPC.
+-   **Efisiensi komputasi**: Offloading TLS dan static assets dari server aplikasi inti.
+-   **Fleksibilitas deployment**: Server backend bisa di-restart atau diganti tanpa memutus endpoint publik.
 
 ### Kekurangan
-- **Single point of failure (SPOF)**: Jika reverse proxy mati dan tidak memiliki redundansi, seluruh sistem mati.
-- **Sedikit overhead latensi**: Menambahkan satu hop jaringan tambahan (biasanya sub-milidetik, tetapi tetap ada).
-- **Kompleksitas konfigurasi**: Perlu pemeliharaan sertifikat SSL, buffer size, timeout, dan header forwarding yang teliti.
+
+-   **Single point of failure (SPOF)**: Jika reverse proxy mati dan tidak memiliki redundansi, seluruh sistem mati.
+-   **Sedikit overhead latensi**: Menambahkan satu hop jaringan tambahan (biasanya sub-milidetik, tetapi tetap ada).
+-   **Kompleksitas konfigurasi**: Perlu pemeliharaan sertifikat SSL, buffer size, timeout, dan header forwarding yang teliti.
 
 ## 7. Kapan Harus Pakai vs Kapan Jangan Pakai
 
 ### Kapan Harus Pakai
-- Setiap aplikasi production yang melayani trafik publik melalui internet.
-- Sistem yang memerlukan terminasi HTTPS terpusat.
-- Ketika memiliki beberapa service internal di domain yang sama (misal `/api` ke Go dan `/static` ke CDN/storage).
+
+-   Setiap aplikasi production yang melayani trafik publik melalui internet.
+-   Sistem yang memerlukan terminasi HTTPS terpusat.
+-   Ketika memiliki beberapa service internal di domain yang sama (misal `/api` ke Go dan `/static` ke CDN/storage).
 
 ### Kapan Jangan Pakai
-- Lingkungan development lokal kecil di mana menjalankan proxy tambahan hanya membuang waktu setup.
-- Komunikasi antar microservice internal dalam satu service mesh murni (yang sudah diatur oleh sidecar proxy seperti Linkerd atau Envoy sidecar).
+
+-   Lingkungan development lokal kecil di mana menjalankan proxy tambahan hanya membuang waktu setup.
+-   Komunikasi antar microservice internal dalam satu service mesh murni (yang sudah diatur oleh sidecar proxy seperti Linkerd atau Envoy sidecar).
 
 ## 8. Metrik Kunci & Observabilitas (Monitoring Dashboard)
 
 Saat mengawasi reverse proxy di Grafana atau Datadog, berikut metrik utama yang wajib dipantau:
-- **`active_connections` (Gauge)**: Jumlah koneksi TCP client yang sedang terbuka secara bersamaan.
-- **`upstream_response_time_seconds` (Histogram/p95/p99)**: Waktu yang dihabiskan server backend untuk merespons request. Jika grafik ini melonjak tajam, masalah ada di aplikasi backend, bukan di proxy.
-- **`upstream_connect_time_seconds` (Histogram)**: Waktu yang dibutuhkan proxy untuk membuka koneksi TCP ke backend. Jika > 1 detik, connection pool upstream penuh atau network jenuh.
-- **`http_status_codes_total{status=~"5xx"}` (Counter)**: Lonjakan HTTP 502 (Bad Gateway) atau 504 (Gateway Timeout) adalah indikator instan bahwa backend sedang tumbang.
+
+-   **`active_connections` (Gauge)**: Jumlah koneksi TCP client yang sedang terbuka secara bersamaan.
+-   **`upstream_response_time_seconds` (Histogram/p95/p99)**: Waktu yang dihabiskan server backend untuk merespons request. Jika grafik ini melonjak tajam, masalah ada di aplikasi backend, bukan di proxy.
+-   **`upstream_connect_time_seconds` (Histogram)**: Waktu yang dibutuhkan proxy untuk membuka koneksi TCP ke backend. Jika > 1 detik, connection pool upstream penuh atau network jenuh.
+-   **`http_status_codes_total{status=~"5xx"}` (Counter)**: Lonjakan HTTP 502 (Bad Gateway) atau 504 (Gateway Timeout) adalah indikator instan bahwa backend sedang tumbang.
 
 ## 9. Studi Kasus Nyata di Industri
 
-- **Cloudflare**: Menjalankan jaringan reverse proxy global berbasis NGINX (dan kini bermigrasi ke engine Rust buatan sendiri bernama *Pingora*) di lebih dari 300 kota di dunia. Reverse proxy ini memproses puluhan triliun request per hari, menangani terminasi TLS, mitigasi DDoS, dan caching di tepi jaringan (*edge*).
-- **GitHub**: Menggunakan **HAProxy** dan **Envoy** sebagai reverse proxy terdepan untuk menerima seluruh trafik Git SSH dan HTTPS. GitHub memanfaatkan kemampuan Envoy dalam melakukan dynamic hot-reloading konfigurasi tanpa memutus koneksi streaming git push/pull yang sedang berjalan.
+-   **Cloudflare**: Menjalankan jaringan reverse proxy global berbasis NGINX (dan kini bermigrasi ke engine Rust buatan sendiri bernama _Pingora_) di lebih dari 300 kota di dunia. Reverse proxy ini memproses puluhan triliun request per hari, menangani terminasi TLS, mitigasi DDoS, dan caching di tepi jaringan (_edge_).
+-   **GitHub**: Menggunakan **HAProxy** dan **Envoy** sebagai reverse proxy terdepan untuk menerima seluruh trafik Git SSH dan HTTPS. GitHub memanfaatkan kemampuan Envoy dalam melakukan dynamic hot-reloading konfigurasi tanpa memutus koneksi streaming git push/pull yang sedang berjalan.
 
 ## 10. Fakta Menarik & Gotchas Production
 
-- **Masalah X-Forwarded-For**: Backend sering salah membaca IP pengunjung menjadi IP si Reverse Proxy. Kamu wajib mengonfigurasi header `X-Forwarded-For` dan `X-Real-IP` agar fitur logging, geolokasi, dan anti-fraud tidak keliru.
-- **Connection Keep-Alive ke Upstream**: Banyak developer lupa menyalakan HTTP keep-alive antara reverse proxy dan backend server. Akibatnya, reverse proxy membuka-tutup socket TCP baru untuk setiap request, yang memicu masalah *port exhaustion* (*TIME_WAIT storm*) saat trafik melonjak tajam.
+-   **Masalah X-Forwarded-For**: Backend sering salah membaca IP pengunjung menjadi IP si Reverse Proxy. Kamu wajib mengonfigurasi header `X-Forwarded-For` dan `X-Real-IP` agar fitur logging, geolokasi, dan anti-fraud tidak keliru.
+-   **Connection Keep-Alive ke Upstream**: Banyak developer lupa menyalakan HTTP keep-alive antara reverse proxy dan backend server. Akibatnya, reverse proxy membuka-tutup socket TCP baru untuk setiap request, yang memicu masalah _port exhaustion_ (_TIME_WAIT storm_) saat trafik melonjak tajam.

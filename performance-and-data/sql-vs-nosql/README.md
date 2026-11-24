@@ -4,15 +4,16 @@
 
 Pada sebuah platform super-app pemesanan transportasi dan pembayaran digital, sistem menangani dua jenis beban kerja yang memiliki karakteristik sangat bertolak belakang:
 
-1. **Layanan Dompet & Saldo (*Wallet & Ledger Service*)**:
-   - Menangani mutasi saldo, transfer antar bank, dan checkout pesanan.
-   - Persyaratan utama: **Integritas data mutlak (ACID)**. Saldo pengirim harus berkurang tepat bersamaan dengan saldo penerima bertambah dalam satu transaksi atomik. Kegagalan data, *phantom read*, atau desinkronisasi saldo tidak boleh terjadi sama sekali.
-   - Pilihan arsitektur: **SQL / Relational Database (PostgreSQL)**.
+1. **Layanan Dompet & Saldo (_Wallet & Ledger Service_)**:
 
-2. **Layanan Pelacakan Posisi Pengemudi (*Driver GPS Location Service*)**:
-   - 300.000 mitra pengemudi mengirimkan koordinat latitude dan longitude setiap 2 detik (150.000 write operations per detik).
-   - Data koordinat bersifat temporal: posisi 10 detik lalu sudah tidak berharga. Yang dibutuhkan adalah kemampuan menyerap lonjakan penulisan ekstrem (*write-heavy ingestion*) dan pembacaan posisi terakhir secara terdistribusi.
-   - Pilihan arsitektur: **NoSQL (Redis In-Memory Key-Value / Apache Cassandra / ScyllaDB)**.
+    - Menangani mutasi saldo, transfer antar bank, dan checkout pesanan.
+    - Persyaratan utama: **Integritas data mutlak (ACID)**. Saldo pengirim harus berkurang tepat bersamaan dengan saldo penerima bertambah dalam satu transaksi atomik. Kegagalan data, _phantom read_, atau desinkronisasi saldo tidak boleh terjadi sama sekali.
+    - Pilihan arsitektur: **SQL / Relational Database (PostgreSQL)**.
+
+2. **Layanan Pelacakan Posisi Pengemudi (_Driver GPS Location Service_)**:
+    - 300.000 mitra pengemudi mengirimkan koordinat latitude dan longitude setiap 2 detik (150.000 write operations per detik).
+    - Data koordinat bersifat temporal: posisi 10 detik lalu sudah tidak berharga. Yang dibutuhkan adalah kemampuan menyerap lonjakan penulisan ekstrem (_write-heavy ingestion_) dan pembacaan posisi terakhir secara terdistribusi.
+    - Pilihan arsitektur: **NoSQL (Redis In-Memory Key-Value / Apache Cassandra / ScyllaDB)**.
 
 Alih-alih memaksakan satu database untuk semua kebutuhan, arsitektur modern berskala tinggi menerapkan pola **Polyglot Persistence**: menggunakan SQL untuk data transaksional relasional, dan NoSQL untuk data berskala besar dengan skema fleksibel atau kebutuhan write throughput ekstrem.
 
@@ -20,24 +21,26 @@ Alih-alih memaksakan satu database untuk semua kebutuhan, arsitektur modern bers
 
 Perbandingan antara SQL (Relational) dan NoSQL (Non-Relational) berpusat pada bagaimana data distrukturkan, disimpan, dan dijamin konsistensinya:
 
-- **SQL (Relational Database Management System - RDBMS)**:
-  - Menyimpan data dalam bentuk tabel relasional dengan baris dan kolom yang terstruktur kaku (*Strict Schema*).
-  - Mengandalkan bahasa SQL terstandardisasi dengan kemampuan relasi antar tabel melalui `JOIN` dan *Foreign Keys*.
-  - Menjamin prinsip **ACID** (*Atomicity, Consistency, Isolation, Durability*).
-  - Contoh: PostgreSQL, MySQL, MariaDB, Oracle, CockroachDB.
+-   **SQL (Relational Database Management System - RDBMS)**:
 
-- **NoSQL (Not Only SQL)**:
-  - Dirancang tanpa skema kaku (*Schemaless* / *Flexible Schema*) dan dioptimalkan untuk penskalaan horizontal (*Scale-Out*).
-  - Mengorbankan sebagian garansi ACID demi ketersediaan dan performa (*BASE: Basically Available, Soft state, Eventual consistency*).
-  - Terdiri dari 4 keluarga utama:
-    1. **Document Store**: Menyimpan data sebagai dokumen JSON/BSON (misal MongoDB, Couchbase).
-    2. **Key-Value Store**: Pemetaan pasangan kunci-nilai berkecepatan ultra tinggi (misal Redis, AWS DynamoDB).
-    3. **Wide-Column Store**: Menyimpan data berdasarkan kolom untuk throughput tulis analitik raksasa (misal Apache Cassandra, ScyllaDB).
-    4. **Graph Database**: Menyimpan node dan edge untuk relasi jaringan sosial atau fraud detection (misal Neo4j).
+    -   Menyimpan data dalam bentuk tabel relasional dengan baris dan kolom yang terstruktur kaku (_Strict Schema_).
+    -   Mengandalkan bahasa SQL terstandardisasi dengan kemampuan relasi antar tabel melalui `JOIN` dan _Foreign Keys_.
+    -   Menjamin prinsip **ACID** (_Atomicity, Consistency, Isolation, Durability_).
+    -   Contoh: PostgreSQL, MySQL, MariaDB, Oracle, CockroachDB.
 
-## 3. Kenapa Harus Dipahami di High-Throughput?
+-   **NoSQL (Not Only SQL)**:
+    -   Dirancang tanpa skema kaku (_Schemaless_ / _Flexible Schema_) dan dioptimalkan untuk penskalaan horizontal (_Scale-Out_).
+    -   Mengorbankan sebagian garansi ACID demi ketersediaan dan performa (_BASE: Basically Available, Soft state, Eventual consistency_).
+    -   Terdiri dari 4 keluarga utama:
+        1. **Document Store**: Menyimpan data sebagai dokumen JSON/BSON (misal MongoDB, Couchbase).
+        2. **Key-Value Store**: Pemetaan pasangan kunci-nilai berkecepatan ultra tinggi (misal Redis, AWS DynamoDB).
+        3. **Wide-Column Store**: Menyimpan data berdasarkan kolom untuk throughput tulis analitik raksasa (misal Apache Cassandra, ScyllaDB).
+        4. **Graph Database**: Menyimpan node dan edge untuk relasi jaringan sosial atau fraud detection (misal Neo4j).
+
+## 3. Kenapa Harus Dipahami ?
 
 Di level arsitektur backend senior, pemilihan jenis database menentukan batasan penskalaan sistem:
+
 1. **Teorema CAP (Consistency, Availability, Partition Tolerance)**: Sistem terdistribusi hanya bisa menjamin maksimal dua dari tiga sifat tersebut. SQL cenderung memilih CA/CP, sedangkan NoSQL sering kali memilih AP/CP untuk menjamin ketersediaan tinggi saat jaringan antar data center terputus.
 2. **Bottleneck Skalabilitas Penulisan (Write Scaling)**: Database SQL tradisional sulit di-scale secara horizontal untuk operasi write tanpa kompleksitas sharding manual. NoSQL dirancang sejak awal untuk auto-partitioning dan distributed clustering.
 3. **Mencegah Anti-Pattern Polyglot**: Memahami trade-offs mencegah tim membuang waktu memaksakan PostgreSQL menyimpan miliaran data log time-series atau memaksakan MongoDB mengelola ledger perbankan yang rapuh tanpa transaksi multi-dokumen ketat.
@@ -151,43 +154,47 @@ func UpdateDriverLocationNoSQL(ctx context.Context, rdb *redis.Client, loc Drive
 ## 6. Kelebihan dan Kekurangan (Trade-offs)
 
 ### SQL (Relational)
-- **Kelebihan**: Integritas data terjamin via ACID, skema kaku mencegah anomali data kotor, query analitik relasional fleksibel dengan `JOIN`, mature tooling & ekosistem puluhan tahun.
-- **Kekurangan**: Sulit di-scale horizontal untuk write throughput masif, migrasi skema tabel raksasa membutuhkan waktu dan perencanaan matang, performa menurun drastis jika query melibatkan terlalu banyak JOIN kompleks.
+
+-   **Kelebihan**: Integritas data terjamin via ACID, skema kaku mencegah anomali data kotor, query analitik relasional fleksibel dengan `JOIN`, mature tooling & ekosistem puluhan tahun.
+-   **Kekurangan**: Sulit di-scale horizontal untuk write throughput masif, migrasi skema tabel raksasa membutuhkan waktu dan perencanaan matang, performa menurun drastis jika query melibatkan terlalu banyak JOIN kompleks.
 
 ### NoSQL (Non-Relational)
-- **Kelebihan**: Penskalaan horizontal bawaan (*Auto-sharding*), throughput tulis sangat tinggi, struktur data fleksibel dan mudah beradaptasi dengan perubahan skema tanpa migrasi DDL yang lama.
-- **Kekurangan**: Tidak ada dukungan relasi bawaan (tidak ada native foreign keys/JOIN efisien), konsistensi data sering kali *eventual* (risiko data stale), rawan duplikasi data (*denormalization storage overhead*).
+
+-   **Kelebihan**: Penskalaan horizontal bawaan (_Auto-sharding_), throughput tulis sangat tinggi, struktur data fleksibel dan mudah beradaptasi dengan perubahan skema tanpa migrasi DDL yang lama.
+-   **Kekurangan**: Tidak ada dukungan relasi bawaan (tidak ada native foreign keys/JOIN efisien), konsistensi data sering kali _eventual_ (risiko data stale), rawan duplikasi data (_denormalization storage overhead_).
 
 ## 7. Kapan Harus Pakai SQL vs NoSQL
 
 ### Pilih SQL Jika:
-- Aplikasi Anda adalah sistem finansial, pembayaran, e-commerce checkout, atau ERP/CRM perusahaan yang menuntut akurasi 100% dan integritas referensial.
-- Pola query data belum pasti dan membutuhkan kemampuan agregasi data kompleks lintas domain bisnis yang saling berelasi.
-- Skala data masih dalam batas ratusan gigabyte hingga beberapa terabyte di mana satu server PostgreSQL modern masih sangat mumpuni.
+
+-   Aplikasi Anda adalah sistem finansial, pembayaran, e-commerce checkout, atau ERP/CRM perusahaan yang menuntut akurasi 100% dan integritas referensial.
+-   Pola query data belum pasti dan membutuhkan kemampuan agregasi data kompleks lintas domain bisnis yang saling berelasi.
+-   Skala data masih dalam batas ratusan gigabyte hingga beberapa terabyte di mana satu server PostgreSQL modern masih sangat mumpuni.
 
 ### Pilih NoSQL Jika:
-- Volume penulisan data sangat masif dan konstan (ratusan ribu write per detik: IoT sensor telemetry, log event clickstream, geolokasi real-time).
-- Data memiliki struktur dinamis tanpa bentuk seragam (misal: katalog produk e-commerce dengan ratusan variasi atribut spesifikasi).
-- Aplikasi membutuhkan penyimpanan key-value dengan latensi sub-milidetik (session cache, shopping cart sementara).
+
+-   Volume penulisan data sangat masif dan konstan (ratusan ribu write per detik: IoT sensor telemetry, log event clickstream, geolokasi real-time).
+-   Data memiliki struktur dinamis tanpa bentuk seragam (misal: katalog produk e-commerce dengan ratusan variasi atribut spesifikasi).
+-   Aplikasi membutuhkan penyimpanan key-value dengan latensi sub-milidetik (session cache, shopping cart sementara).
 
 ## 8. Metrik Kunci & Observabilitas (Monitoring Dashboard)
 
-- **SQL - `database_deadlocks_total` (Counter)**: Jumlah deadlock transaksi SQL akibat perebutan baris secara simultan.
-- **SQL - `active_transactions_duration_seconds` (Gauge)**: Memantau transaksi mengambang (*long-running transactions*) yang menahan tabel.
-- **NoSQL - `replication_lag_seconds` (Gauge)**: Jarak waktu keterlambatan sinkronisasi data antar node replica NoSQL.
-- **NoSQL - `read_repair_requests_total` (Counter)**: Jumlah operasi perbaikan data yang tidak konsisten saat dibaca di cluster Cassandra/DynamoDB.
+-   **SQL - `database_deadlocks_total` (Counter)**: Jumlah deadlock transaksi SQL akibat perebutan baris secara simultan.
+-   **SQL - `active_transactions_duration_seconds` (Gauge)**: Memantau transaksi mengambang (_long-running transactions_) yang menahan tabel.
+-   **NoSQL - `replication_lag_seconds` (Gauge)**: Jarak waktu keterlambatan sinkronisasi data antar node replica NoSQL.
+-   **NoSQL - `read_repair_requests_total` (Counter)**: Jumlah operasi perbaikan data yang tidak konsisten saat dibaca di cluster Cassandra/DynamoDB.
 
 ## 9. Studi Kasus Industri Nyata
 
-- **Amazon**: Merancang basis data NoSQL internal legendaris bernama **DynamoDB** setelah menyadari bahwa 70% query database layanan ritel mereka sebenarnya hanya berupa pencarian key-value sederhana yang tidak memerlukan relational JOIN RDBMS yang mahal dan lambat.
-- **Uber**: Mengombinasikan PostgreSQL, MySQL (Schemaless), dan Redis/Cassandra. Data transaksi keuangan perjalanan tetap berada di RDBMS berintegritas tinggi, sedangkan riwayat koordinat penjemputan dan telemetry GPS dialirkan ke datastore NoSQL terdistribusi.
+-   **Amazon**: Merancang basis data NoSQL internal legendaris bernama **DynamoDB** setelah menyadari bahwa 70% query database layanan ritel mereka sebenarnya hanya berupa pencarian key-value sederhana yang tidak memerlukan relational JOIN RDBMS yang mahal dan lambat.
+-   **Uber**: Mengombinasikan PostgreSQL, MySQL (Schemaless), dan Redis/Cassandra. Data transaksi keuangan perjalanan tetap berada di RDBMS berintegritas tinggi, sedangkan riwayat koordinat penjemputan dan telemetry GPS dialirkan ke datastore NoSQL terdistribusi.
 
 ## 10. Jebakan Umum di Lingkungan Produksi (Gotchas)
 
-1. **Ilusi ACID pada NoSQL**: Mengira bahwa NoSQL modern bisa menangani transaksi multi-dokumen sekuat RDBMS. Meskipun beberapa NoSQL menambahkan fitur transaksi, biaya latensi jaringan dan risiko *write conflicts* pada cluster terdistribusi sangat tinggi.
+1. **Ilusi ACID pada NoSQL**: Mengira bahwa NoSQL modern bisa menangani transaksi multi-dokumen sekuat RDBMS. Meskipun beberapa NoSQL menambahkan fitur transaksi, biaya latensi jaringan dan risiko _write conflicts_ pada cluster terdistribusi sangat tinggi.
 2. **PostgreSQL JSONB Menggantikan NoSQL**: Sering kali developer beralih ke MongoDB hanya demi menyimpan JSON dinamis. Padahal PostgreSQL memiliki tipe data `JSONB` yang dilengkapi indeks GIN berkecepatan tinggi, memungkinkan kombinasi tabel relasional dan data dokumen tanpa perlu mengoperasikan database NoSQL terpisah.
-3. **Application-Level JOIN Nightmare di NoSQL**: Melakukan denormalisasi berlebihan di NoSQL hingga saat butuh laporan agregasi, backend terpaksa melakukan puluhan query HTTP terpisah dan menggabungkannya secara manual di memori kode Go (*in-memory stitching*).
+3. **Application-Level JOIN Nightmare di NoSQL**: Melakukan denormalisasi berlebihan di NoSQL hingga saat butuh laporan agregasi, backend terpaksa melakukan puluhan query HTTP terpisah dan menggabungkannya secara manual di memori kode Go (_in-memory stitching_).
 
 ## 11. Rangkuman Singkat
 
-SQL unggul dalam integritas data transaksional (ACID) dan relasi query yang presisi, sedangkan NoSQL unggul dalam elastisitas penskalaan horizontal dan throughput penulisan bervolume ekstrem. Keputusan terbaik dalam arsitektur backend modern bukanlah memilih salah satu secara eksklusif, melainkan mengombinasikan keduanya (*Polyglot Persistence*) sesuai kebutuhan spesifik domain bisnis.
+SQL unggul dalam integritas data transaksional (ACID) dan relasi query yang presisi, sedangkan NoSQL unggul dalam elastisitas penskalaan horizontal dan throughput penulisan bervolume ekstrem. Keputusan terbaik dalam arsitektur backend modern bukanlah memilih salah satu secara eksklusif, melainkan mengombinasikan keduanya (_Polyglot Persistence_) sesuai kebutuhan spesifik domain bisnis.

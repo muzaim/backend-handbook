@@ -2,36 +2,41 @@
 
 ## 1. Skenario Sistem Nyata
 
-Pada arsitektur backend e-commerce skala besar, satu request checkout dari pengguna memicu belasan panggilan internal antar-microservice (*east-west traffic*: Order Service -> User Service, Payment Service, Inventory Service, Promotion Service, Fraud Service, dsb.).
+Pada arsitektur backend e-commerce skala besar, satu request checkout dari pengguna memicu belasan panggilan internal antar-microservice (_east-west traffic_: Order Service -> User Service, Payment Service, Inventory Service, Promotion Service, Fraud Service, dsb.).
 
 Jika seluruh komunikasi internal antar-microservice menggunakan REST API standar (JSON over HTTP/1.1):
-- Setiap kali data dikirim, server pengirim harus melakukan *JSON serialization* (mengubah objek memori menjadi string teks), dan server penerima harus melakukan *JSON parsing* (membaca string teks kembali menjadi objek). Proses konversi teks ini sangat rakus CPU saat trafik mencapai 50.000 req/s.
-- Ukuran payload teks JSON membengkak karena nama-nama field (`"transaction_id"`, `"customer_email"`, `"created_at"`) diulang-ulang di setiap baris data.
-- Protokol HTTP/1.1 membutuhkan negosiasi handshake TCP baru untuk setiap request paralel atau mengalami masalah *Head-of-Line (HoL) Blocking*.
+
+-   Setiap kali data dikirim, server pengirim harus melakukan _JSON serialization_ (mengubah objek memori menjadi string teks), dan server penerima harus melakukan _JSON parsing_ (membaca string teks kembali menjadi objek). Proses konversi teks ini sangat rakus CPU saat trafik mencapai 50.000 req/s.
+-   Ukuran payload teks JSON membengkak karena nama-nama field (`"transaction_id"`, `"customer_email"`, `"created_at"`) diulang-ulang di setiap baris data.
+-   Protokol HTTP/1.1 membutuhkan negosiasi handshake TCP baru untuk setiap request paralel atau mengalami masalah _Head-of-Line (HoL) Blocking_.
 
 **Solusi dengan gRPC & Protocol Buffers:**
-Microservices berkomunikasi menggunakan gRPC di atas protokol HTTP/2 dengan format serialisasi biner Protocol Buffers (`.proto`). Alih-alih mengirim teks panjang, Protobuf mengompresi data menjadi deretan biner ringkas menggunakan angka penanda (*field tags*). Satu koneksi TCP HTTP/2 dapat digunakan bersama untuk ratusan request asinkron sekaligus (*multiplexing*), memangkas penggunaan bandwidth hingga 60% dan menurunkan latensi latensi inter-service hingga 5x lipat.
+Microservices berkomunikasi menggunakan gRPC di atas protokol HTTP/2 dengan format serialisasi biner Protocol Buffers (`.proto`). Alih-alih mengirim teks panjang, Protobuf mengompresi data menjadi deretan biner ringkas menggunakan angka penanda (_field tags_). Satu koneksi TCP HTTP/2 dapat digunakan bersama untuk ratusan request asinkron sekaligus (_multiplexing_), memangkas penggunaan bandwidth hingga 60% dan menurunkan latensi latensi inter-service hingga 5x lipat.
 
 ## 2. Apa Itu dan Buat Apa?
 
 gRPC (Google Remote Procedure Call) adalah framework RPC open-source berkinerja tinggi yang awalnya dikembangkan oleh Google. gRPC memungkinkan aplikasi client memanggil method atau fungsi pada server di mesin berbeda seolah-olah memanggil fungsi lokal di memori sendiri.
 
 gRPC didukung oleh dua teknologi inti:
-1. **Protocol Buffers (Protobuf)**: Mekanisme serialisasi data terstruktur biner yang independen dari bahasa pemrograman (*language-neutral*) dan platform.
-2. **HTTP/2 Transport**: Protokol jaringan modern yang mendukung *bidirectional streaming*, kompresi header (HPACK), dan *multiplexing* banyak request dalam satu koneksi TCP fisik tunggal.
+
+1. **Protocol Buffers (Protobuf)**: Mekanisme serialisasi data terstruktur biner yang independen dari bahasa pemrograman (_language-neutral_) dan platform.
+2. **HTTP/2 Transport**: Protokol jaringan modern yang mendukung _bidirectional streaming_, kompresi header (HPACK), dan _multiplexing_ banyak request dalam satu koneksi TCP fisik tunggal.
 
 Empat jenis metode komunikasi di gRPC:
-- **Unary RPC**: Client kirim 1 request, Server balas 1 response (seperti REST biasa).
-- **Server Streaming RPC**: Client kirim 1 request, Server membalas dengan aliran (*stream*) data berkelanjutan.
-- **Client Streaming RPC**: Client mengirim aliran stream data, Server membalas dengan 1 response rangkuman.
-- **Bidirectional Streaming RPC**: Client dan Server saling bertukar aliran data stream secara independen bersamaan.
 
-## 3. Kenapa Harus Pakai Ini di High-Throughput?
+-   **Unary RPC**: Client kirim 1 request, Server balas 1 response (seperti REST biasa).
+-   **Server Streaming RPC**: Client kirim 1 request, Server membalas dengan aliran (_stream_) data berkelanjutan.
+-   **Client Streaming RPC**: Client mengirim aliran stream data, Server membalas dengan 1 response rangkuman.
+-   **Bidirectional Streaming RPC**: Client dan Server saling bertukar aliran data stream secara independen bersamaan.
+
+## 3. Kenapa Harus Pakai Ini ?
 
 ### 1. Efisiensi Serialisasi Biner vs Teks
-JSON dan XML adalah format teks berbasis karakter string yang mudah dibaca manusia (*human-readable*), tetapi sangat tidak efisien untuk mesin. Protobuf mengodekan data ke dalam format biner yang sangat padat (*type-safe* dan terkompresi). Proses encode/decode Protobuf di CPU jauh lebih cepat daripada parser JSON tercepat sekalipun.
+
+JSON dan XML adalah format teks berbasis karakter string yang mudah dibaca manusia (_human-readable_), tetapi sangat tidak efisien untuk mesin. Protobuf mengodekan data ke dalam format biner yang sangat padat (_type-safe_ dan terkompresi). Proses encode/decode Protobuf di CPU jauh lebih cepat daripada parser JSON tercepat sekalipun.
 
 ### 2. HTTP/2 Connection Multiplexing
+
 Pada HTTP/1.1, client harus membuka banyak koneksi TCP terpisah jika ingin mengirim beberapa request paralel. Di gRPC (HTTP/2), ribuan request dan response dapat berjalan bolak-balik bersamaan di dalam **satu koneksi TCP tunggal** melalui sistem framing biner. Ini menghemat alokasi port soket dan jabat tangan TLS yang mahal.
 
 ## 4. Cara Kerjanya (Diagram Alur)
@@ -72,7 +77,7 @@ option go_package = "github.com/company/order/v1;orderv1";
 service OrderService {
   // Unary RPC untuk membuat order baru
   rpc CreateOrder (CreateOrderRequest) returns (CreateOrderResponse);
-  
+
   // Server Streaming RPC untuk streaming log status order
   rpc TrackOrderStatus (TrackOrderRequest) returns (stream OrderStatusUpdate);
 }
@@ -109,9 +114,9 @@ type server struct {
 
 func (s *server) CreateOrder(ctx context.Context, req *orderv1.CreateOrderRequest) (*orderv1.CreateOrderResponse, error) {
     orderID := uuid.New().String()
-    
+
     // Logika simpan transaksi ke database...
-    
+
     return &orderv1.CreateOrderResponse{
         OrderId:   orderID,
         Status:    "PENDING",
@@ -123,43 +128,47 @@ func (s *server) CreateOrder(ctx context.Context, req *orderv1.CreateOrderReques
 ## 6. Kelebihan dan Kekurangan (Trade-offs)
 
 ### Kelebihan
-- **Kecepatan & Throughput Ekstrem**: Payload biner 3-10x lebih kecil dari JSON dan proses de/serialisasi 5-8x lebih cepat di CPU.
-- **Kontrak Tipe Data Ketat (*Strict Type-Safety*)**: File `.proto` menjadi satu-satunya sumber kebenaran (*Single Source of Truth*) yang mencegah mismatch tipe data antar tim.
-- **Dukungan Multi-Bahasa Otomatis**: Kode client/server SDK untuk Go, Java, Python, Node.js, C#, dan Rust digenerate secara otomatis oleh `protoc`.
+
+-   **Kecepatan & Throughput Ekstrem**: Payload biner 3-10x lebih kecil dari JSON dan proses de/serialisasi 5-8x lebih cepat di CPU.
+-   **Kontrak Tipe Data Ketat (_Strict Type-Safety_)**: File `.proto` menjadi satu-satunya sumber kebenaran (_Single Source of Truth_) yang mencegah mismatch tipe data antar tim.
+-   **Dukungan Multi-Bahasa Otomatis**: Kode client/server SDK untuk Go, Java, Python, Node.js, C#, dan Rust digenerate secara otomatis oleh `protoc`.
 
 ### Kekurangan
-- **Tidak Mudah Dibaca Manusia**: Payload biner tidak bisa diinspeksi langsung dengan mata telanjang di `curl` atau terminal tanpa tooling khusus seperti `grpcurl` atau Postman gRPC.
-- **Dukungan Browser Terbatas**: Browser web tidak dapat membuka koneksi HTTP/2 gRPC murni secara native; membutuhkan proxy perantara seperti *gRPC-Web* atau Envoy.
-- **Masalah Load Balancing Default**: Karena HTTP/2 menggunakan koneksi TCP tunggal yang persisten, load balancer Layer 4 biasa akan mengarahkan seluruh trafik ke 1 server saja.
+
+-   **Tidak Mudah Dibaca Manusia**: Payload biner tidak bisa diinspeksi langsung dengan mata telanjang di `curl` atau terminal tanpa tooling khusus seperti `grpcurl` atau Postman gRPC.
+-   **Dukungan Browser Terbatas**: Browser web tidak dapat membuka koneksi HTTP/2 gRPC murni secara native; membutuhkan proxy perantara seperti _gRPC-Web_ atau Envoy.
+-   **Masalah Load Balancing Default**: Karena HTTP/2 menggunakan koneksi TCP tunggal yang persisten, load balancer Layer 4 biasa akan mengarahkan seluruh trafik ke 1 server saja.
 
 ## 7. Kapan Harus Pakai vs Kapan Jangan Pakai
 
 ### Kapan Harus Pakai
-- Komunikasi internal antar-microservices di dalam jaringan data center / VPC privat (*East-West traffic*).
-- Sistem pemrosesan streaming real-time yang membutuhkan throughput jutaan pesan per detik.
-- Komunikasi antar service dengan bahasa pemrograman yang berbeda-beda (*polyglot microservices*).
+
+-   Komunikasi internal antar-microservices di dalam jaringan data center / VPC privat (_East-West traffic_).
+-   Sistem pemrosesan streaming real-time yang membutuhkan throughput jutaan pesan per detik.
+-   Komunikasi antar service dengan bahasa pemrograman yang berbeda-beda (_polyglot microservices_).
 
 ### Kapan Jangan Pakai
-- Public API yang langsung diakses oleh web frontend / mobile pihak ketiga (REST JSON jauh lebih universal dan mudah diintegrasikan).
-- Aplikasi CRUD sederhana dengan trafik rendah di mana fleksibilitas payload JSON lebih diutamakan daripada efisiensi biner.
+
+-   Public API yang langsung diakses oleh web frontend / mobile pihak ketiga (REST JSON jauh lebih universal dan mudah diintegrasikan).
+-   Aplikasi CRUD sederhana dengan trafik rendah di mana fleksibilitas payload JSON lebih diutamakan daripada efisiensi biner.
 
 ## 8. Metrik Kunci & Observabilitas
 
 Untuk memonitor kesehatan pemanggilan gRPC pada Prometheus / Datadog:
 
-- **`grpc_server_handling_seconds`**: Latensi eksekusi RPC di tingkat server (pantau distribusi persentil P95 dan P99).
-- **`grpc_server_handled_total{grpc_code="OK|DeadlineExceeded|Unavailable"}`**: Jumlah panggilan RPC yang sukses vs yang gagal berdasarkan status code gRPC.
-- **`grpc_server_msg_received_total` & `msg_sent_total`**: Volume frame pesan yang dikonsumsi dan diterbitkan, terutama pada alur streaming.
-- **`grpc_client_open_connections`**: Jumlah koneksi TCP fisik HTTP/2 yang aktif antar-pod.
-- **`grpc_stream_duration_seconds`**: Waktu aktif sebuah koneksi streaming gRPC sebelum terputus.
+-   **`grpc_server_handling_seconds`**: Latensi eksekusi RPC di tingkat server (pantau distribusi persentil P95 dan P99).
+-   **`grpc_server_handled_total{grpc_code="OK|DeadlineExceeded|Unavailable"}`**: Jumlah panggilan RPC yang sukses vs yang gagal berdasarkan status code gRPC.
+-   **`grpc_server_msg_received_total` & `msg_sent_total`**: Volume frame pesan yang dikonsumsi dan diterbitkan, terutama pada alur streaming.
+-   **`grpc_client_open_connections`**: Jumlah koneksi TCP fisik HTTP/2 yang aktif antar-pod.
+-   **`grpc_stream_duration_seconds`**: Waktu aktif sebuah koneksi streaming gRPC sebelum terputus.
 
 ## 9. Studi Kasus Nyata di Industri
 
-- **Netflix Inter-Service Migration**: Netflix memigrasikan komunikasi ribuan microservices internal mereka dari REST JSON ke gRPC. Transformasi ini memangkas konsumsi CPU server secara masif di seluruh kluster AWS dan mengeliminasi bug integrasi antar tim berkat kontrak Protobuf yang ketat.
-- **Uber IPC Architecture**: Uber menggunakan gRPC sebagai protokol komunikasi standar utama untuk ribuan service microservices mereka yang melayani pencocokan pengemudi dan pelacakan rute secara global.
+-   **Netflix Inter-Service Migration**: Netflix memigrasikan komunikasi ribuan microservices internal mereka dari REST JSON ke gRPC. Transformasi ini memangkas konsumsi CPU server secara masif di seluruh kluster AWS dan mengeliminasi bug integrasi antar tim berkat kontrak Protobuf yang ketat.
+-   **Uber IPC Architecture**: Uber menggunakan gRPC sebagai protokol komunikasi standar utama untuk ribuan service microservices mereka yang melayani pencocokan pengemudi dan pelacakan rute secara global.
 
 ## 10. Fakta Menarik & Gotchas Production
 
-- **The L4 Load Balancing Trap**: Ini adalah jebakan maut paling sering saat tim pertama kali migrasi ke gRPC: Load Balancer tradisional Layer 4 (seperti AWS NLB / round-robin TCP balancer) membagi beban berdasarkan *koneksi TCP*. Karena gRPC HTTP/2 hanya membuka **SATU koneksi TCP persisten**, seluruh 100.000 RPC call berikutnya akan terus ditembakkan ke Pod Server yang sama persis, sementara 19 pod lainnya menganggur!  
-  *Solusi Wajib:* Gunakan **L7 Load Balancer** yang mengerti frame HTTP/2 (seperti Envoy Proxy, Traefik, atau Kubernetes gRPC Service) atau terapkan *Client-Side Load Balancing*.
-- **Pantangan Mengubah Tag Nomor di .proto**: Di Protobuf, nama variabel (misal `customer_id`) tidak pernah dikirim lewat jaringan. Yang dikirim adalah nomor tag-nya (`1`). Jika kamu mengubah `string customer_id = 1;` menjadi `string customer_id = 2;`, data lama akan corrupt dan sistem penerima akan membaca data ke field yang salah! Tag nomor bersifat permanen selamanya.
+-   **The L4 Load Balancing Trap**: Ini adalah jebakan maut paling sering saat tim pertama kali migrasi ke gRPC: Load Balancer tradisional Layer 4 (seperti AWS NLB / round-robin TCP balancer) membagi beban berdasarkan _koneksi TCP_. Karena gRPC HTTP/2 hanya membuka **SATU koneksi TCP persisten**, seluruh 100.000 RPC call berikutnya akan terus ditembakkan ke Pod Server yang sama persis, sementara 19 pod lainnya menganggur!  
+    _Solusi Wajib:_ Gunakan **L7 Load Balancer** yang mengerti frame HTTP/2 (seperti Envoy Proxy, Traefik, atau Kubernetes gRPC Service) atau terapkan _Client-Side Load Balancing_.
+-   **Pantangan Mengubah Tag Nomor di .proto**: Di Protobuf, nama variabel (misal `customer_id`) tidak pernah dikirim lewat jaringan. Yang dikirim adalah nomor tag-nya (`1`). Jika kamu mengubah `string customer_id = 1;` menjadi `string customer_id = 2;`, data lama akan corrupt dan sistem penerima akan membaca data ke field yang salah! Tag nomor bersifat permanen selamanya.
