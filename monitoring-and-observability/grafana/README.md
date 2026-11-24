@@ -1,0 +1,140 @@
+# Grafana
+
+## 1. Skenario Sistem Nyata
+
+Pada saat event promo gajian (*Payday Sale*) dengan volume 100.000 pengguna aktif per detik, tim backend engineer, SRE (*Site Reliability Engineer*), dan pimpinan engineering harus memantau kesehatan sistem secara *real-time*. Di dalam sistem ini ada 20 microservices yang menggunakan database PostgreSQL, cache Redis, message broker Kafka, dan cluster Kubernetes di multi-region.
+
+Jika pemantauan dilakukan secara terpisah tanpa satu panel dashboard terpadu:
+- Tim database harus membuka CLI terminal untuk melihat koneksi Postgres, tim infra membuka Kubernetes dashboard, tim aplikasi mengecek terminal logs, dan tim networking mengecek AWS CloudWatch.
+- Ketika ada insiden penurunan transaksi pembayaran, butuh waktu 30 menit hanya untuk mengoordinasikan tim dan mencari tahu di layer mana masalah bermula (*siloed monitoring blind spots*).
+- Manajemen bisnis tidak memiliki visibilitas langsung mengenai performa sistem terhadap metrik bisnis (seperti total GMV transaksi per menit atau tingkat keberhasilan checkout).
+
+**Solusi dengan Grafana:**
+Grafana bertindak sebagai lapisan visualisasi dan analisis terpadu (*unified observability frontend*). Dalam satu layar dashboard *Single Pane of Glass*, Grafana mengagregasi metrik dari Prometheus, log dari Loki, dan distributed trace dari Jaeger/Tempo. Hanya dengan sekali lirik di layar monitoring Command Center, engineer langsung melihat korelasi visual: lonjakan latensi P99 di `Order Service` bertepatan dengan kenaikan *Active Connection* di PostgreSQL dan kenaikan *Consumer Lag* di Kafka, memangkas waktu investigasi akar masalah (*MTTR - Mean Time to Resolution*) dari 30 menit menjadi hanya 2 menit!
+
+## 2. Apa Itu dan Buat Apa?
+
+**Grafana** adalah platform visualisasi data, analisis interaktif, dan pembuatan dashboard operasional sumber terbuka yang paling populer di dunia. Grafana mengubah data numerik time-series, log, dan trace dari ratusan sumber data (*datasources*) menjadi grafik, bagan, peta panas (*heatmaps*), dan panel metrik yang mudah dipahami.
+
+### Kemampuan Kunci Grafana:
+1. **Multi-Datasource Agnostic**: Menggabungkan data dari berbagai sumber dalam satu panel dashboard yang sama (Prometheus, PostgreSQL, MySQL, Elasticsearch, InfluxDB, CloudWatch, Datadog).
+2. **Visualisasi Interaktif & Variabel Dinamis**: Menyediakan panel Time-Series, Gauge, Bar Chart, Heatmap, dan Node Graph dengan filter dropdown dinamis (misal memilih `$cluster`, `$namespace`, atau `$service`).
+3. **Unified Alerting Engine**: Mengevaluasi aturan ambang batas alert lintas sumber data dan mengirimkan notifikasi ke Slack, PagerDuty, Discord, Telegram, atau Webhook.
+4. **Dashboard as Code (Provisioning)**: Mendukung pengelolaan dashboard dan datasource dalam bentuk file deklaratif JSON/YAML yang dapat disimpan di Git (*GitOps*).
+
+## 3. Kenapa Harus Pakai Ini di High-Throughput?
+
+### 1. Korelasi Visual Lintas Layer (The "Single Pane of Glass")
+Di sistem terdistribusi dengan puluhan service, masalah jarang terjadi secara terisolasi. Penurunan throughput aplikasi hampir selalu berkaitan dengan saturasi resource di layer bawah. Grafana memungkinkan penumpukan grafik (*overlaying*): menyandingkan grafik throughput aplikasi Go dengan utilisasi CPU Kubernetes pod dan disk I/O database pada sumbu waktu yang sama persis.
+
+### 2. Deteksi Anomali Lewat Heatmap Latensi
+Grafik garis biasa sering gagal menunjukkan distribusi latensi yang timpang. Grafana menyediakan panel **Heatmap** yang memvisualisasikan seluruh sebaran latensi request secara mendalam, memudahkan engineer mendeteksi keberadaan *outlier requests* atau anomali *bimodal latency* dalam sekejap.
+
+### 3. Templating & Otomatisasi Skalabilitas
+Saat kluster Kubernetes kamu melakukan auto-scaling dari 10 pod menjadi 200 pod, kamu tidak perlu membuat 200 dashboard manual. Dengan fitur **Dashboard Variables** dan **Panel Repeat**, Grafana secara otomatis membuat panel pemantauan baru untuk setiap pod baru yang terdeteksi.
+
+## 4. Cara Kerjanya (Arsitektur Multi-Datasource Grafana)
+
+```
+[ PENGGUNA: SRE / Backend Engineer / Management ]
+                        |
+                        v
+         +-----------------------------+
+         |     GRAFANA SERVER (UI)     |
+         |  - Interactive Dashboards   |
+         |  - Unified Alerting Engine  |
+         |  - Role-Based Access (RBAC) |
+         +-----------------------------+
+                        |
+       (Query Paralel Berdasarkan Panel)
+                        |
+       +----------------+----------------+
+       |                |                |
+       v                v                v
++--------------+ +--------------+ +--------------+
+|  Prometheus  | | Grafana Loki | |  PostgreSQL  |
+|  (Metrics)   | | (App Logs)   | | (Biz Data)   |
++--------------+ +--------------+ +--------------+
+```
+
+## 5. Cuplikan Konfigurasi Inti
+
+### 1. Deklarasi Otomatis Datasource Prometheus (`datasources.yml`)
+
+```yaml
+apiVersion: 1
+
+datasources:
+  - name: Prometheus-Production
+    type: prometheus
+    access: proxy
+    url: http://prometheus-server.monitoring.svc.cluster.local:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      httpMethod: POST
+      timeInterval: 15s
+```
+
+### 2. Cuplikan Query Panel PromQL untuk Dashboard Grafana
+
+Query yang umum digunakan pada panel dashboard microservices:
+
+```promql
+# Panel 1: Throughput Request per Detik (RPS) per Endpoint
+sum by (endpoint) (rate(http_requests_total{status=~"2.."}[1m]))
+
+# Panel 2: Latensi P99 (SLA Compliance)
+histogram_quantile(0.99, sum by (le, endpoint) (rate(http_request_duration_seconds_bucket[5m])))
+
+# Panel 3: Rasio Error 5xx (Error Rate %)
+(
+  sum(rate(http_requests_total{status=~"5.."}[1m]))
+  /
+  sum(rate(http_requests_total[1m]))
+) * 100
+```
+
+## 6. Kelebihan dan Kekurangan (Trade-offs)
+
+### Kelebihan
+- **Fleksibilitas Tanpa Tanding**: Tidak terkunci pada satu vendor database monitoring tertentu (*zero vendor lock-in*).
+- **Komunitas & Ekosistem Luas**: Tersedia ribuan template dashboard siap pakai dari komunitas (untuk Node Exporter, Kubernetes, Redis, NGINX, PostgreSQL).
+- **Kolaborasi Efisien**: Fitur snapshot dashboard dan anotasi waktu mempermudah tim melakukan post-mortem insiden produksi.
+
+### Kekurangan
+- **Bukan Mesin Penyimpan Data**: Grafana murni layer presentasi; Grafana tidak menyimpan data time-series itu sendiri. Performa dashboard sangat bergantung pada kecepatan database di belakangnya (Prometheus / Elasticsearch).
+- **Risiko Query Berlebih (Query Overload)**: Dashboard publik dengan refresh rate 1 detik yang dibuka oleh ratusan developer dapat membebani database Prometheus hingga crash (*accidental DDoS on TSDB*).
+- **Kompleksitas Manajemen Akses di Skala Besar**: Fitur RBAC tingkat lanjut dan integrasi audit log tim enterprise hanya tersedia di lisensi berbayar Grafana Enterprise.
+
+## 7. Kapan Harus Pakai vs Kapan Jangan Pakai
+
+### Kapan Wajib Pakai Grafana
+- Pusat komando pemantauan operasional (*Single Pane of Glass*) untuk tim engineering dan SRE.
+- Visualisasi metrik throughput, latensi P95/P99, error rate, dan saturasi resource secara real-time.
+- Menampilkan metrik bisnis penting di layar TV kantor (NOC room dashboard).
+
+### Kapan Jangan Mengandalkan Grafana Saja
+- Analisis deep stack trace kode aplikasi saat debugging error logika lokal (lebih tepat menggunakan APM / Jaeger).
+- Sebagai database analisis analitik data besar (*data warehouse reporting*) yang membutuhkan query ad-hoc kompleks berjam-jam (lebih cocok Tableau / Metabase di atas BigQuery / ClickHouse).
+
+## 8. Metrik Kunci & Observabilitas
+
+Metrik untuk memantau performa instance Grafana itu sendiri:
+
+- **`grafana_http_request_duration_seconds`**: Waktu respons internal API Grafana saat merender halaman.
+- **`grafana_api_dataproxy_request_all_milliseconds`**: Durasi waktu tunggu query proxy antara Grafana dan datasource eksternal (mendeteksi datasource yang lemot).
+- **`grafana_stat_active_users`**: Jumlah pengguna aktif yang sedang membuka dashboard.
+
+## 9. Studi Kasus Nyata di Industri
+
+- **CERN (Organisasi Riset Nuklir Eropa)**: Menggunakan Grafana untuk memonitor ribuan sensor komputer dan akselerator partikel *Large Hadron Collider (LHC)*, memvisualisasikan jutaan metrik kontrol secara real-time.
+- **Uber Microservices Observability**: Uber mengintegrasikan Grafana dengan mesin metrik skala besar mereka (M3DB) untuk memvisualisasikan kesehatan ratusan ribu container backend dan armada pengemudi global.
+
+## 10. Fakta Menarik & Gotchas Production
+
+- **The 1-Second Auto-Refresh Disaster**:  
+  Banyak tim engineering memasang dashboard Grafana di TV ruang kerja dengan interval *Auto-Refresh* disetel ke **1 detik** (`1s`). Jika dashboard tersebut memiliki 30 panel dengan query `histogram_quantile` yang berat, satu layar tersebut mengeksekusi **1.800 query PromQL berat per menit** ke Prometheus! Ini setara dengan melancarkan serangan denial-of-service ke server monitoring sendiri!  
+  *Aturan Wajib:* Batasi auto-refresh dashboard di lingkungan produksi minimal **`30s`** atau **`1m`**.
+- **Panel Query Caching (Menyelamatkan TSDB)**:  
+  Di Grafana modern, aktifkan fitur **Query Caching** pada datasource. Jika ada 10 engineer yang membuka dashboard incident response yang sama secara bersamaan, Grafana hanya akan mengeksekusi 1 query ke Prometheus dan menyajikan hasilnya dari cache memori ke 9 engineer lainnya.
