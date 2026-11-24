@@ -8,7 +8,7 @@ Di sini, kita tidak hanya membahas teori, tetapi juga skenario sistem nyata, ala
 
 ---
 
-## Peta Kurikulum (10 Kategori Arsitektur - 52 Topik)
+## Peta Kurikulum (10 Kategori Arsitektur - 53 Topik)
 
 Seluruh materi di dalam repositori ini dikelompokkan ke dalam 10 folder kategori utama untuk mencerminkan perjalanan sebuah request dari fondasi penskalaan, lapisan pintu masuk trafik, identitas/keamanan, pemrosesan data, ketahanan sistem, sistem asinkron, delivery, protokol, perangkat lunak konkret, hingga pemantauan sistem produksi:
 
@@ -52,36 +52,36 @@ Seluruh materi di dalam repositori ini dikelompokkan ke dalam 10 folder kategori
 +-------------------------------------------------------------------------+
 | async-and-distributed-systems/ (Komunikasi Skala Besar)                 |
 | 26. Message Queues       27. Pub/Sub             28. Event-Driven Arch  |
-| 29. Dist. Transactions   30. Saga Pattern                               |
+| 29. Dist. Transactions   30. Saga Pattern        31. CQRS Pattern       |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | infrastructure-and-delivery/ (Fondasi Operasional & Deployment)         |
-| 31. Service Discovery    32. CI/CD                                      |
+| 32. Service Discovery    33. CI/CD                                      |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | protocols-and-realtime/ (Protokol Berperforma Tinggi & Real-Time)       |
-| 33. gRPC & Protobuf      34. WebSockets & SSE    35. CDN & Edge Caching |
-| 36. Webhooks                                                            |
+| 34. gRPC & Protobuf      35. WebSockets & SSE    36. CDN & Edge Caching |
+| 37. Webhooks                                                            |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | tools-and-technologies/ (Perangkat Lunak Konkret High-Throughput)       |
-| 37. Docker               38. Kubernetes          39. Redis              |
-| 40. Apache Kafka         41. PostgreSQL          42. NGINX              |
-| 43. Jenkins              44. RabbitMQ            45. Elasticsearch      |
-| 46. PgBouncer            47. HAProxy             48. Kong Gateway       |
+| 38. Docker               39. Kubernetes          40. Redis              |
+| 41. Apache Kafka         42. PostgreSQL          43. NGINX              |
+| 44. Jenkins              45. RabbitMQ            46. Elasticsearch      |
+| 47. PgBouncer            48. HAProxy             49. Kong Gateway       |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | monitoring-and-observability/ (Pemantauan & Keandalan Sistem Produksi)  |
-| 49. Prometheus           50. Grafana             51. OpenTelemetry      |
-| 52. Centralized Logging                                                 |
+| 50. Prometheus           51. Grafana             52. OpenTelemetry      |
+| 53. Centralized Logging                                                 |
 +-------------------------------------------------------------------------+
 ```
 
@@ -132,6 +132,7 @@ Setiap folder memiliki dokumentasi dwibahasa: `README.md` (Bahasa Indonesia) dan
 - [Event-Driven Architecture](async-and-distributed-systems/event-driven-architecture/README.md) - Desain sistem yang bereaksi terhadap perubahan event secara decoupled.
 - [Distributed Transactions](async-and-distributed-systems/distributed-transactions/README.md) - Tantangan konsistensi data lintas database terpisah (dan batasannya).
 - [Saga Pattern](async-and-distributed-systems/saga-pattern/README.md) - Pola transaksi bisnis terdistribusi berbasis serangkaian transaksi lokal dan kompensasi.
+- [CQRS (Command Query Responsibility Segregation)](async-and-distributed-systems/cqrs/README.md) - Pemisahan jalur tulis (Command) dan jalur baca (Query) untuk query data terdenormalisasi ultra-cepat tanpa SQL JOIN lintas microservices.
 
 ### 7. Infrastructure & Delivery (`infrastructure-and-delivery/`)
 - [Service Discovery](infrastructure-and-delivery/service-discovery/README.md) - Mekanisme dinamis agar service dapat saling menemukan alamat IP dan port rekannya.
