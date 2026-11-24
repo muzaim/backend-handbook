@@ -8,7 +8,7 @@ Di sini, kita tidak hanya membahas teori, tetapi juga skenario sistem nyata, ala
 
 ---
 
-## Peta Kurikulum (10 Kategori Arsitektur - 49 Topik)
+## Peta Kurikulum (10 Kategori Arsitektur - 50 Topik)
 
 Seluruh materi di dalam repositori ini dikelompokkan ke dalam 10 folder kategori utama untuk mencerminkan perjalanan sebuah request dari fondasi penskalaan, lapisan pintu masuk trafik, identitas/keamanan, pemrosesan data, ketahanan sistem, sistem asinkron, delivery, protokol, perangkat lunak konkret, hingga pemantauan sistem produksi:
 
@@ -73,14 +73,14 @@ Seluruh materi di dalam repositori ini dikelompokkan ke dalam 10 folder kategori
 | 35. Docker               36. Kubernetes          37. Redis              |
 | 38. Apache Kafka         39. PostgreSQL          40. NGINX              |
 | 41. Jenkins              42. RabbitMQ            43. Elasticsearch      |
-| 44. PgBouncer            45. HAProxy                                    |
+| 44. PgBouncer            45. HAProxy             46. Kong Gateway       |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | monitoring-and-observability/ (Pemantauan & Keandalan Sistem Produksi)  |
-| 46. Prometheus           47. Grafana             48. OpenTelemetry      |
-| 49. Centralized Logging                                                 |
+| 47. Prometheus           48. Grafana             49. OpenTelemetry      |
+| 50. Centralized Logging                                                 |
 +-------------------------------------------------------------------------+
 ```
 
@@ -152,6 +152,7 @@ Setiap folder memiliki dokumentasi dwibahasa: `README.md` (Bahasa Indonesia) dan
 - [Elasticsearch](tools-and-technologies/elasticsearch/README.md) - Mesin pencari teks dan analitik terdistribusi berbasis Inverted Index dan scoring BM25.
 - [PgBouncer](tools-and-technologies/pgbouncer/README.md) - Reverse connection pooler ringan penyelamat PostgreSQL dari kehabisan koneksi (*connection exhaustion*).
 - [HAProxy](tools-and-technologies/haproxy/README.md) - Load balancer Layer 4 & 7 berkinerja tinggi dengan efisiensi memori ekstrem dan health check presisi.
+- [Kong API Gateway](tools-and-technologies/kong/README.md) - Cloud-native API gateway berbasis NGINX/OpenResty untuk memusatkan autentikasi, rate limiting, routing, dan plugin microservices secara deklaratif.
 
 ### 10. Monitoring & Observability (`monitoring-and-observability/`)
 - [Prometheus](monitoring-and-observability/prometheus/README.md) - Sistem pemantauan metrik time-series berbasis pull-model dan evaluasi PromQL real-time.

@@ -8,7 +8,7 @@ Here, we cover not just theory, but real-world industrial scenarios, why a techn
 
 ---
 
-## Curriculum Roadmap (10 Architectural Layers - 49 Topics)
+## Curriculum Roadmap (10 Architectural Layers - 50 Topics)
 
 All curriculum modules are categorized into 10 primary directories reflecting the lifecycle of a request from system scaling foundations, external ingress, security/identity, data acceleration, system resilience, asynchronous communication, operational delivery, high-performance protocols, concrete tooling, to production observability:
 
@@ -73,14 +73,14 @@ All curriculum modules are categorized into 10 primary directories reflecting th
 | 35. Docker               36. Kubernetes          37. Redis              |
 | 38. Apache Kafka         39. PostgreSQL          40. NGINX              |
 | 41. Jenkins              42. RabbitMQ            43. Elasticsearch      |
-| 44. PgBouncer            45. HAProxy                                    |
+| 44. PgBouncer            45. HAProxy             46. Kong Gateway       |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | monitoring-and-observability/ (Production Monitoring & Reliability)     |
-| 46. Prometheus           47. Grafana             48. OpenTelemetry      |
-| 49. Centralized Logging                                                 |
+| 47. Prometheus           48. Grafana             49. OpenTelemetry      |
+| 50. Centralized Logging                                                 |
 +-------------------------------------------------------------------------+
 ```
 
@@ -152,6 +152,7 @@ Every folder contains bilingual documentation: `README.md` (Indonesian) and `REA
 - [Elasticsearch](tools-and-technologies/elasticsearch/README.en.md) - Distributed inverted-index search and analytics engine for full-text querying and BM25 relevance scoring.
 - [PgBouncer](tools-and-technologies/pgbouncer/README.en.md) - Lightweight connection pooler shielding PostgreSQL from connection limits and fork overhead.
 - [HAProxy](tools-and-technologies/haproxy/README.en.md) - High-performance Layer 4 and Layer 7 load balancer known for deterministic low latency and precise health checking.
+- [Kong API Gateway](tools-and-technologies/kong/README.en.md) - Cloud-native API gateway built on NGINX/OpenResty for declarative, plugin-driven microservice authentication, rate limiting, and traffic routing.
 
 ### 10. Monitoring & Observability (`monitoring-and-observability/`)
 - [Prometheus](monitoring-and-observability/prometheus/README.en.md) - Time-series metrics monitoring platform utilizing a pull model and PromQL expressions.
