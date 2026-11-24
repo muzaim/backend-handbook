@@ -2,16 +2,22 @@
 
 ## 1. Simple Analogy & Real-World Scenario
 
-Imagine a corporate office building constructed under a single roof:
+You are managing an e-commerce backend platform that has rapidly expanded from an early-stage startup into a scale-up organization of 30 backend engineers split across 4 dedicated squads: Order Squad, Payment Squad, Inventory Squad, and Promotions Squad.
 
-The building houses distinct functional departments: **Finance**, **Sales**, and **Logistics**.
-- All staff operate inside the same physical facility (one utility bill, shared air conditioning, single physical address).
-- However, each department possesses **its own secured office suite with badge-restricted doors**.
-- Sales representatives are strictly forbidden from wandering into the Finance vault to inspect confidential invoices. If Sales requires customer ledger records, they must walk to Finance's official reception desk (*interface*) and submit an authorized data request.
+The platform still runs as a unified single monolith. As features multiplied, architectural decay emerged across the codebase:
+- Engineers in the Promotions squad began writing complex SQL queries executing direct `JOIN` operations across 5 private tables owned by Payment and Order to compute promotional discounts.
+- One afternoon, the Payment squad renamed the column `amount_cents` to `amount_currency` inside their private database table. Without warning, this change broke undocumented queries written by Promotions and Inventory, triggering production 500 errors.
+- Go package dependencies became deeply intertwined (*spaghetti circular imports*), making refactoring impossible without destabilizing neighboring squad features.
 
-If the building lacked internal walls (a chaotic open-plan room), files would scatter and leaks would run rampant (*Traditional Monolith without boundaries*). Conversely, if the company forced all three departments to rent separate buildings in three distant cities, rent expenses would balloon and inter-department collaboration would crawl (*premature Microservices*).
+However, management firmly resists splitting into microservices because the team cannot justify the operational drag of multi-cluster Kubernetes fleets, inter-service network latency, and distributed transactional complexities.
 
-A **Modular Monolith** strikes the golden mean: **A single unified deployable runtime, but with rigorously enforced internal domain boundaries inside the codebase**.
+The architectural solution is adopting a **Modular Monolith**:
+- The entire application compiles and deploys as a **single unified Go binary**.
+- The codebase is restructured into autonomous domain modules (*bounded contexts*): `internal/order`, `internal/payment`, `internal/inventory`.
+- The `Payment` module hides its private tables and structs. Outside packages are forbidden from executing cross-module SQL joins; they must interact via public Go interface contracts (`PaymentModuleInterface`) or subscribe to in-memory domain events (`PaymentSettledEvent`).
+- Database tables are partitioned into isolated PostgreSQL logical schemas (`orders.*` vs `payments.*`).
+
+The outcome: squads achieve decoupled domain autonomy like microservices while retaining sub-microsecond in-memory performance ($< 1\,\mu\text{s}$) and single-binary deployment simplicity.
 
 ---
 

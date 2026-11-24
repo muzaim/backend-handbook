@@ -2,15 +2,22 @@
 
 ## 1. Analogi Sederhana & Skenario Nyata
 
-Bayangkan sebuah bandara internasional yang sangat sibuk:
+Kalian mengelola infrastruktur backend sebuah startup fintech yang telah memiliki 35 microservices terpisah yang ditulis dalam berbagai bahasa pemrograman (*polyglot*: Go, Node.js, dan Python):
 
-Setiap penumpang (request dari aplikasi mobile atau web) yang mendarat tidak boleh langsung berjalan bebas masuk ke kota tujuan (internal microservices seperti *Order Service*, *Payment Service*, atau *User Service*). Sebelum diizinkan masuk, semua penumpang wajib melewati satu gerbang pemeriksaan terpadu:
-1. **Pemeriksaan Paspor & Visa (Autentikasi & Autorisasi)**: Petugas imigrasi memeriksa apakah penumpang memiliki identitas yang valid.
-2. **Mesin X-Ray & Pemindai Bagasi (Security & WAF)**: Memastikan tidak ada barang terlarang atau serangan berbahaya seperti SQL Injection atau DDoS.
-3. **Pemberian Jalur Khusus (Routing & Load Balancing)**: Mengarahkan penumpang jalur diplomatik/VIP vs ekonomi ke terminal bus yang tepat.
-4. **Pencatatan Stempel Kedatangan (Logging & Metrics)**: Petugas mencatat berapa banyak wisatawan yang masuk setiap menitnya.
+Awalnya, setiap tim microservice mengelola keamanan dan lalu lintasnya sendiri-sendiri:
+- Tim Payment menulis kode middleware Go untuk mendekripsi dan memverifikasi tanda tangan kriptografis token JWT, mengecek rate limit di Redis, dan memvalidasi CORS.
+- Tim Order menulis middleware serupa di Node.js/TypeScript.
+- Tim Fraud Detection menulis hal yang sama di Python/FastAPI.
 
-Jika setiap gedung kantor di kota harus membangun pos imigrasi dan mesin X-Ray sendiri, biaya keamanan akan meledak dan sistem pemeriksaan menjadi tidak konsisten. **Kong Gateway** bertindak sebagai gerbang terpadu bandara tersebut bagi seluruh ekosistem backend kalian.
+Masalah operasional dan keamanan besar mulai muncul:
+1. **Duplikasi Kode Berbahaya**: 35 service menulis ulang logika verifikasi JWT dan CORS yang sama persis. Ketika ada pembaruan sertifikat public key (RS256 key rotation), seluruh 35 service harus di-redeploy bersamaan. Jika ada 1 tim yang lupa deploy, layanannya langsung mengalami error otentikasi.
+2. **Celah Keamanan di Perimeter**: Library JWT pihak ketiga di service Node.js ternyata memiliki celah kerentanan *security vulnerability*. Akibatnya, hacker bisa memalsukan token untuk masuk ke internal backend tanpa terdeteksi.
+3. **DDoS & Scraping Menembus Jaringan Dalam**: Ketiadaan rate limiter terpusat di pintu masuk membuat bot scraping eksternal langsung membanjiri CPU microservices internal hingga database kolaps.
+
+Solusi arsitektur modern adalah menempatkan **Kong API Gateway** di garis terdepan (*edge perimeter*) jaringan sistem:
+- Semua request publik dari internet (Mobile/Web) **wajib masuk melewati satu pintu gerbang Kong** sebelum menyentuh service mana pun.
+- Kong menangani seluruh tugas lintas-sektoral secara terpusat: terminasi SSL/TLS, verifikasi tanda tangan JWT, pembatasan laju request (Rate Limiting via Redis), proteksi CORS, dan routing URL dinamis.
+- Microservices internal (Order, Payment, Inventory) berada di jaringan privat (*private VPC/Kubernetes cluster*) dan **hanya fokus pada logika bisnis murni**. Microservices internal tidak perlu lagi membuang CPU untuk mendekode JWT berulang-ulang, karena Kong telah memverifikasinya di gerbang depan dan meneruskan identitas pengguna yang valid via internal header `X-Consumer-Custom-ID`.
 
 ---
 

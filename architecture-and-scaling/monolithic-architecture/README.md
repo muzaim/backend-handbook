@@ -2,13 +2,14 @@
 
 ## 1. Analogi Sederhana & Skenario Nyata
 
-Bayangkan kalian membuka sebuah kafe kopi kecil:
+Kalian sedang membangun sebuah platform e-commerce MVP (Minimum Viable Product) tahap awal bersama tim beranggotakan 3 orang engineer backend:
 
-Semua aktivitas berada dalam satu ruangan terbuka: kasir menerima uang, barista menyeduh espresso, pemanggang menghangatkan roti, dan manajer mencatat pembukuan harian di buku kas yang sama di atas meja kasir. 
-- Saat pesanan baru masuk, kasir cukup berteriak ke barista: *"Americano satu!"*. Tidak ada kurir, tidak ada panggilan telepon, komunikasi terjadi seketika dalam hitungan detik (*in-memory*).
-- Jika kalian ingin merenovasi atau memindahkan kafe, kalian hanya perlu memindahkan satu ruangan tersebut.
+Pada fase ini, kebutuhan bisnis utama adalah memvalidasi fitur ke pengguna secepat mungkin. Kalian memutuskan menyatukan seluruh fitur aplikasi—mulai dari manajemen produk, keranjang belanja, proses checkout, pemotongan saldo wallet, hingga pengiriman email konfirmasi—ke dalam satu repositori Go tunggal.
+- **Komunikasi Langsung Antar-Modul**: Ketika handler `CheckoutHandler` selesai memvalidasi pesanan, ia langsung memanggil fungsi `walletService.DeductBalance()` melalui *pointer call* di memori RAM server yang sama. Waktu eksekusinya hanya butuh waktu ~10 nanodetik tanpa serialisasi JSON dan tanpa latensi jaringan HTTP/gRPC.
+- **Konsistensi Transaksi Sederhana**: Pembuatan order dan pemotongan saldo pengguna dibungkus dalam satu transaksi SQL `BEGIN ... COMMIT` di database PostgreSQL yang sama. Jika saldo pengguna tidak cukup, seluruh transaksi dibatalkan (*rollback*) secara atomik tanpa perlu koordinasi pesan terdistribusi yang rumit.
+- **Deployment Sekali Jalan**: Saat merilis versi baru, tim hanya perlu menjalankan `go build -o app main.go` dan men-deploy satu binary tersebut ke satu server virtual (VM).
 
-Inilah gambaran **Monolithic Architecture** (Arsitektur Monolit). Semua fitur aplikasi kalian (Autentikasi, Katalog, Keranjang Belanja, Pembayaran, Notifikasi) berada dalam satu basis kode (*single codebase*), dikompilasi menjadi satu berkas binary executable tunggal, dan dijalankan dalam satu proses sistem operasi yang mengakses satu database utama.
+Inilah gambaran nyata **Monolithic Architecture** (Arsitektur Monolit): seluruh kemampuan bisnis berada dalam satu basis kode (*single codebase*), dikompilasi menjadi satu unit eksekusi (*single binary/deployable unit*), dan berjalan dalam satu proses sistem operasi yang mengakses satu database utama.
 
 ---
 

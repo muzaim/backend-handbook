@@ -2,16 +2,22 @@
 
 ## 1. Analogi Sederhana & Skenario Nyata
 
-Bayangkan sebuah gedung perkantoran satu atap yang dirancang modern:
+Kalian sedang mengelola proyek backend e-commerce yang telah berkembang pesat dari startup awal menjadi perusahaan tahap scale-up dengan 30 orang engineer yang dibagi ke dalam 4 tim squad: Tim Order, Tim Payment, Tim Inventory, dan Tim Promo.
 
-Gedung tersebut ditempati oleh berbagai divisi: **Divisi Finance**, **Divisi Sales**, dan **Divisi Logistik**. 
-- Semua divisi bekerja di dalam gedung yang sama (satu izin sewa, satu genset listrik, satu alamat fisik).
-- Namun, masing-masing divisi memiliki **ruangan kantor sendiri yang tertutup rapat dengan pintu akses kartu kunci**. 
-- Staf Sales dilarang keras masuk menyelinap ke brankas dokumen Finance untuk mengambil faktur secara diam-diam. Jika Sales membutuhkan data faktur, mereka wajib mendatangi loket resmi (*receptionist / interface*) Finance dan meminta dokumen tersebut sesuai prosedur.
+Aplikasi masih berjalan sebagai satu monolit tunggal. Seiring bertambahnya fitur, mulai terjadi kekacauan arsitektur di dalam kode:
+- Engineer dari Tim Promo tiba-tiba menulis query SQL yang melakukan `JOIN` langsung ke 5 tabel privat milik Tim Payment dan Tim Order untuk menghitung diskon.
+- Suatu hari, Tim Payment mengubah nama kolom `amount_cents` menjadi `amount_idr` di tabel pembayaran mereka. Tanpa disadari, perubahan ini langsung merusak (*breaking change*) query milik Tim Promo dan Tim Inventory, memicu error 500 fatal di production.
+- Dependensi paket Go menjadi saling silang (*spaghetti imports*), membuat refactoring mustahil dilakukan tanpa merusak fitur tim lain.
 
-Jika seluruh gedung tidak disekat (seperti open-space berantakan), dokumen akan berserakan dan rahasia bocor (*Traditional Monolith tanpa batas*). Sebaliknya, jika ketiga divisi tersebut dipaksa menyewa gedung di tiga kota berbeda, biaya operasional membengkak dan komunikasi melambat drastis (*Microservices prematur*). 
+Namun, manajemen menolak memecah aplikasi menjadi microservices terpisah karena tim tidak ingin menambah beban biaya server Kubernetes, latensi jaringan HTTP antar-layanan, dan kerumitan distributed transaction.
 
-**Modular Monolith** adalah titik temu ideal: **Satu proses deployment tunggal, namun dengan dinding pembatas domain bisnis yang ditegakkan secara ketat di dalam kode**.
+Solusinya adalah menerapkan **Modular Monolith**:
+- Seluruh kode tetap di-build dan di-deploy sebagai **satu binary Go tunggal**.
+- Kode ditata ulang ke dalam paket-paket domain mandiri (*bounded contexts*): `internal/order`, `internal/payment`, `internal/inventory`.
+- Modul `Payment` menyembunyikan tabel dan struct internalnya. Modul lain dilarang keras melakukan SQL JOIN langsung ke tabel payment; mereka hanya boleh memanggil kontrak publik Go (`PaymentModuleInterface`) atau mendengarkan event in-memory (`PaymentSettledEvent`).
+- Skema database diisolasi secara logis (misalnya schema PostgreSQL `orders.*` vs `payments.*`).
+
+Hasilnya: tim mendapatkan kerapian domain dan kemandirian kerja seperti microservices, namun tetap menikmati kecepatan eksekusi memori ($< 1\,\mu\text{s}$) dan kesederhanaan deployment monolit.
 
 ---
 

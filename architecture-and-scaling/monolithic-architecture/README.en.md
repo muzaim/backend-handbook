@@ -2,13 +2,14 @@
 
 ## 1. Simple Analogy & Real-World Scenario
 
-Imagine opening a small neighborhood coffee shop:
+You are building an early-stage MVP (Minimum Viable Product) for an e-commerce platform alongside a compact team of three backend engineers:
 
-Every activity takes place in a single open room: the cashier takes payments, the barista brews espresso shots, the baker warms croissants, and the manager manages accounting books on the same front desk.
-- When an order arrives, the cashier simply calls out: *"One Americano!"*. There are no couriers, no phone lines, and communication happens instantaneously (*in-memory*).
-- If you decide to relocate or renovate the cafe, you move that single unified room.
+At this stage, the primary business priority is validating features with end users at maximum speed. Your team unifies all application domains—product catalog, cart management, checkout handling, wallet debiting, and email notifications—into a single Go repository.
+- **Direct In-Memory Inter-Module Calls**: When `CheckoutHandler` finishes validating an order, it calls `walletService.DeductBalance()` directly via a memory pointer inside the same server RAM. Execution takes approximately ~10 nanoseconds without wire serialization or HTTP/gRPC network hops.
+- **Trivial Transactional Integrity**: Order creation and wallet balance deductions are wrapped within a standard SQL `BEGIN ... COMMIT` block on the same PostgreSQL database. If the wallet balance is insufficient, the transaction cleanly rolls back atomically without requiring complex distributed messaging consensus.
+- **Single-Artifact Deployment**: Releasing a new version requires compiling `go build -o app main.go` and shipping that single binary to a single virtual machine (VM).
 
-This mirrors a **Monolithic Architecture**. All application capabilities (Authentication, Catalog, Shopping Cart, Payment, Notification) live inside a single codebase (*single codebase*), compile into one executable binary, and run within a single operating system process accessing a shared primary database.
+This is a **Monolithic Architecture**: all business capabilities live in a single codebase, compile into a single deployable unit, and execute inside a single operating system process accessing a shared primary database.
 
 ---
 
