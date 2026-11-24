@@ -8,79 +8,80 @@ Di sini, kita tidak hanya membahas teori, tetapi juga skenario sistem nyata, ala
 
 ---
 
-## Peta Kurikulum (10 Kategori Arsitektur - 50 Topik)
+## Peta Kurikulum (10 Kategori Arsitektur - 52 Topik)
 
 Seluruh materi di dalam repositori ini dikelompokkan ke dalam 10 folder kategori utama untuk mencerminkan perjalanan sebuah request dari fondasi penskalaan, lapisan pintu masuk trafik, identitas/keamanan, pemrosesan data, ketahanan sistem, sistem asinkron, delivery, protokol, perangkat lunak konkret, hingga pemantauan sistem produksi:
 
 ```
 +-------------------------------------------------------------------------+
 | architecture-and-scaling/ (Fondasi Desain & Penskalaan Sistem)          |
-| 1. Horizontal Scaling    2. Vertical Scaling     3. Monolith vs Micro   |
+| 1. Horizontal Scaling    2. Vertical Scaling     3. Monolith Arch       |
+| 4. Modular Monolith      5. Microservices Arch                          |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | traffic-and-edge/ (Gerbang Utama, CORS, & Pengatur Lalu Lintas)         |
-| 4. Reverse Proxies       5. API Gateways         6. Load Balancing      |
-| 7. Rate Limiting         8. CORS                 9. BFF Pattern         |
-| 10. API Versioning                                                      |
+| 6. Reverse Proxies       7. API Gateways         8. Load Balancing      |
+| 9. Rate Limiting         10. CORS                11. BFF Pattern        |
+| 12. API Versioning                                                      |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | security-and-identity/ (Autentikasi & Keamanan Akses Terdistribusi)     |
-| 11. JWT Authentication & Token Lifecycle                                |
+| 13. JWT Authentication & Token Lifecycle                                |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | performance-and-data/ (Akselerasi, Migrasi, & Akses Data Cepat)         |
-| 12. Caching              13. Database Indexing   14. SQL vs NoSQL       |
-| 15. Database Pagination  16. Zero-Downtime DB Migrations                |
+| 14. Caching              15. Database Indexing   16. SQL vs NoSQL       |
+| 17. Database Pagination  18. Zero-Downtime DB Migrations                |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | resilience-and-fault-tolerance/ (Ketahanan & Penanganan Masalah)        |
-| 17. Timeouts             18. Retries             19. Exp. Backoff       |
-| 20. Circuit Breakers     21. Idempotency         22. Dist. Locking      |
-| 23. Payment Idempotency                                                 |
+| 19. Timeouts             20. Retries             21. Exp. Backoff       |
+| 22. Circuit Breakers     23. Idempotency         24. Dist. Locking      |
+| 25. Payment Idempotency                                                 |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | async-and-distributed-systems/ (Komunikasi Skala Besar)                 |
-| 24. Message Queues       25. Pub/Sub             26. Event-Driven Arch  |
-| 27. Dist. Transactions   28. Saga Pattern                               |
+| 26. Message Queues       27. Pub/Sub             28. Event-Driven Arch  |
+| 29. Dist. Transactions   30. Saga Pattern                               |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | infrastructure-and-delivery/ (Fondasi Operasional & Deployment)         |
-| 29. Service Discovery    30. CI/CD                                      |
+| 31. Service Discovery    32. CI/CD                                      |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | protocols-and-realtime/ (Protokol Berperforma Tinggi & Real-Time)       |
-| 31. gRPC & Protobuf      32. WebSockets & SSE    33. CDN & Edge Caching |
-| 34. Webhooks                                                            |
+| 33. gRPC & Protobuf      34. WebSockets & SSE    35. CDN & Edge Caching |
+| 36. Webhooks                                                            |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | tools-and-technologies/ (Perangkat Lunak Konkret High-Throughput)       |
-| 35. Docker               36. Kubernetes          37. Redis              |
-| 38. Apache Kafka         39. PostgreSQL          40. NGINX              |
-| 41. Jenkins              42. RabbitMQ            43. Elasticsearch      |
-| 44. PgBouncer            45. HAProxy             46. Kong Gateway       |
+| 37. Docker               38. Kubernetes          39. Redis              |
+| 40. Apache Kafka         41. PostgreSQL          42. NGINX              |
+| 43. Jenkins              44. RabbitMQ            45. Elasticsearch      |
+| 46. PgBouncer            47. HAProxy             48. Kong Gateway       |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | monitoring-and-observability/ (Pemantauan & Keandalan Sistem Produksi)  |
-| 47. Prometheus           48. Grafana             49. OpenTelemetry      |
-| 50. Centralized Logging                                                 |
+| 49. Prometheus           50. Grafana             51. OpenTelemetry      |
+| 52. Centralized Logging                                                 |
 +-------------------------------------------------------------------------+
 ```
 
@@ -93,7 +94,9 @@ Setiap folder memiliki dokumentasi dwibahasa: `README.md` (Bahasa Indonesia) dan
 ### 1. Architecture & Scaling (`architecture-and-scaling/`)
 - [Horizontal Scaling](architecture-and-scaling/horizontal-scaling/README.md) - Penskalaan elastis dengan menambah jumlah node server tanpa status (*stateless*).
 - [Vertical Scaling](architecture-and-scaling/vertical-scaling/README.md) - Peningkatan kapasitas daya komputasi (CPU, RAM, NVMe) pada satu mesin tunggal.
-- [Monolith, Modular Monolith, dan Microservices](architecture-and-scaling/monolith-vs-microservices/README.md) - Panduan arsitektur sistem membandingkan monolithic, modular boundaries, hingga microservices terdistribusi beserta trade-offs dan Conway's law.
+- [Monolithic Architecture](architecture-and-scaling/monolithic-architecture/README.md) - Pola perancangan sistem satu unit runtime dengan komunikasi in-memory instan dan integritas transaksi ACID database tunggal.
+- [Modular Monolith](architecture-and-scaling/modular-monolith/README.md) - Arsitektur monolit modern dengan batas modul (*bounded contexts*), interface publik terisolasi, dan skema database mandiri.
+- [Microservices Architecture](architecture-and-scaling/microservices-architecture/README.md) - Arsitektur terdistribusi berbasis layanan otonom dengan database mandiri (*Database-per-Service*) dan komunikasi RPC/Event jaringan.
 
 ### 2. Traffic & Edge (`traffic-and-edge/`)
 - [Reverse Proxies](traffic-and-edge/reverse-proxies/README.md) - Pelindung dan perantara antara client dan server internal.

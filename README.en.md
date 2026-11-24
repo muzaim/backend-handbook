@@ -8,79 +8,80 @@ Here, we cover not just theory, but real-world industrial scenarios, why a techn
 
 ---
 
-## Curriculum Roadmap (10 Architectural Layers - 50 Topics)
+## Curriculum Roadmap (10 Architectural Layers - 52 Topics)
 
 All curriculum modules are categorized into 10 primary directories reflecting the lifecycle of a request from system scaling foundations, external ingress, security/identity, data acceleration, system resilience, asynchronous communication, operational delivery, high-performance protocols, concrete tooling, to production observability:
 
 ```
 +-------------------------------------------------------------------------+
 | architecture-and-scaling/ (System Design & Scaling Foundations)         |
-| 1. Horizontal Scaling    2. Vertical Scaling     3. Monolith vs Micro   |
+| 1. Horizontal Scaling    2. Vertical Scaling     3. Monolith Arch       |
+| 4. Modular Monolith      5. Microservices Arch                          |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | traffic-and-edge/ (Ingress Gateway, CORS, & Traffic Control)            |
-| 4. Reverse Proxies       5. API Gateways         6. Load Balancing      |
-| 7. Rate Limiting         8. CORS                 9. BFF Pattern         |
-| 10. API Versioning                                                      |
+| 6. Reverse Proxies       7. API Gateways         8. Load Balancing      |
+| 9. Rate Limiting         10. CORS                11. BFF Pattern        |
+| 12. API Versioning                                                      |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | security-and-identity/ (Distributed Authentication & Access Security)   |
-| 11. JWT Authentication & Token Lifecycle                                |
+| 13. JWT Authentication & Token Lifecycle                                |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | performance-and-data/ (Acceleration, Migration, & Fast Data Access)     |
-| 12. Caching              13. Database Indexing   14. SQL vs NoSQL       |
-| 15. Database Pagination  16. Zero-Downtime DB Migrations                |
+| 14. Caching              15. Database Indexing   16. SQL vs NoSQL       |
+| 17. Database Pagination  18. Zero-Downtime DB Migrations                |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | resilience-and-fault-tolerance/ (Reliability & Fault Handling)          |
-| 17. Timeouts             18. Retries             19. Exp. Backoff       |
-| 20. Circuit Breakers     21. Idempotency         22. Dist. Locking      |
-| 23. Payment Idempotency                                                 |
+| 19. Timeouts             20. Retries             21. Exp. Backoff       |
+| 22. Circuit Breakers     23. Idempotency         24. Dist. Locking      |
+| 25. Payment Idempotency                                                 |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | async-and-distributed-systems/ (Large-Scale Communication)               |
-| 24. Message Queues       25. Pub/Sub             26. Event-Driven Arch  |
-| 27. Dist. Transactions   28. Saga Pattern                               |
+| 26. Message Queues       27. Pub/Sub             28. Event-Driven Arch  |
+| 29. Dist. Transactions   30. Saga Pattern                               |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | infrastructure-and-delivery/ (Operational Foundations & Delivery)       |
-| 29. Service Discovery    30. CI/CD                                      |
+| 31. Service Discovery    32. CI/CD                                      |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | protocols-and-realtime/ (High-Performance Protocols & Real-Time)        |
-| 31. gRPC & Protobuf      32. WebSockets & SSE    33. CDN & Edge Caching |
-| 34. Webhooks                                                            |
+| 33. gRPC & Protobuf      34. WebSockets & SSE    35. CDN & Edge Caching |
+| 36. Webhooks                                                            |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | tools-and-technologies/ (Concrete High-Throughput Software)             |
-| 35. Docker               36. Kubernetes          37. Redis              |
-| 38. Apache Kafka         39. PostgreSQL          40. NGINX              |
-| 41. Jenkins              42. RabbitMQ            43. Elasticsearch      |
-| 44. PgBouncer            45. HAProxy             46. Kong Gateway       |
+| 37. Docker               38. Kubernetes          39. Redis              |
+| 40. Apache Kafka         41. PostgreSQL          42. NGINX              |
+| 43. Jenkins              44. RabbitMQ            45. Elasticsearch      |
+| 46. PgBouncer            47. HAProxy             48. Kong Gateway       |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | monitoring-and-observability/ (Production Monitoring & Reliability)     |
-| 47. Prometheus           48. Grafana             49. OpenTelemetry      |
-| 50. Centralized Logging                                                 |
+| 49. Prometheus           50. Grafana             51. OpenTelemetry      |
+| 52. Centralized Logging                                                 |
 +-------------------------------------------------------------------------+
 ```
 
@@ -93,7 +94,9 @@ Every folder contains bilingual documentation: `README.md` (Indonesian) and `REA
 ### 1. Architecture & Scaling (`architecture-and-scaling/`)
 - [Horizontal Scaling](architecture-and-scaling/horizontal-scaling/README.en.md) - Elastic capacity expansion by adding stateless worker nodes in parallel.
 - [Vertical Scaling](architecture-and-scaling/vertical-scaling/README.en.md) - Enhancing compute throughput (CPU, RAM, NVMe) on a single physical host.
-- [Monolith, Modular Monolith, and Microservices](architecture-and-scaling/monolith-vs-microservices/README.en.md) - Architectural design guide comparing monolithic simplicity, modular in-memory boundaries, and distributed microservices with Conway's law and real-world trade-offs.
+- [Monolithic Architecture](architecture-and-scaling/monolithic-architecture/README.en.md) - Single runtime deployable unit design with instant sub-microsecond in-memory calls and ACID consistency.
+- [Modular Monolith](architecture-and-scaling/modular-monolith/README.en.md) - Modern monolithic architecture with strict bounded contexts, private schemas, and enforced interface contracts.
+- [Microservices Architecture](architecture-and-scaling/microservices-architecture/README.en.md) - Distributed architecture of autonomous services with isolated databases (*Database-per-Service*) and network RPC/Event integration.
 
 ### 2. Traffic & Edge (`traffic-and-edge/`)
 - [Reverse Proxies](traffic-and-edge/reverse-proxies/README.en.md) - Intermediary protecting and routing traffic to internal backend servers.
