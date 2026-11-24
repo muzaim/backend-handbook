@@ -2,13 +2,13 @@
 
 Selamat datang di **Kamus Backend High-Throughput**. Repositori ini dirancang khusus sebagai panduan komprehensif, praktis, dan ramah developer junior untuk memahami konsep-konsep inti arsitektur backend berskala besar (*high-throughput distributed systems*).
 
-Di sini, kita tidak hanya membahas teori, tetapi juga skenario sistem nyata, alasan mengapa sebuah teknik dibutuhkan saat trafik meledak, trade-offs (kelebihan dan kekurangan), diagram alur ASCII yang bersih, cuplikan logika inti dalam bahasa Go (Golang), panduan kapan harus pakai vs kapan jangan pakai, metrik kunci observabilitas, studi kasus industri nyata, serta jebakan umum (*gotchas*) di lingkungan produksi.
+Di sini, kita tidak hanya membahas teori, tetapi juga skenario sistem nyata, alasan mengapa sebuah teknik dibutuhkan saat trafik meledak, trade-offs (kelebihan dan kekurangan), diagram alur ASCII yang bersih, cuplikan logika inti dalam bahasa Go (Golang) dan konfigurasi produksi teruji, panduan kapan harus pakai vs kapan jangan pakai, metrik kunci observabilitas, studi kasus industri nyata, serta jebakan umum (*gotchas*) di lingkungan produksi.
 
 > Baca versi bahasa Inggris: [English Version](README.en.md)
 
 ---
 
-## Peta Kurikulum (9 Kategori Arsitektur - 35 Topik)
+## Peta Kurikulum (9 Kategori Arsitektur - 40 Topik)
 
 Seluruh materi di dalam repositori ini dikelompokkan ke dalam 9 folder kategori utama untuk mencerminkan perjalanan sebuah request dari fondasi penskalaan, layer terluar, pemrosesan data, fondasi delivery, perangkat lunak konkret, hingga pemantauan sistem produksi:
 
@@ -63,13 +63,15 @@ Seluruh materi di dalam repositori ini dikelompokkan ke dalam 9 folder kategori 
 | tools-and-technologies/ (Perangkat Lunak Konkret High-Throughput)       |
 | 26. Docker               27. Kubernetes          28. Redis              |
 | 29. Apache Kafka         30. PostgreSQL          31. NGINX              |
+| 32. Jenkins              33. RabbitMQ            34. Elasticsearch      |
+| 35. PgBouncer            36. HAProxy                                    |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | monitoring-and-observability/ (Pemantauan & Keandalan Sistem Produksi)  |
-| 32. Prometheus           33. Grafana             34. OpenTelemetry      |
-| 35. Centralized Logging                                                 |
+| 37. Prometheus           38. Grafana             39. OpenTelemetry      |
+| 40. Centralized Logging                                                 |
 +-------------------------------------------------------------------------+
 ```
 
@@ -77,7 +79,7 @@ Seluruh materi di dalam repositori ini dikelompokkan ke dalam 9 folder kategori 
 
 ## Daftar Topik Lengkap
 
-Setiap folder memiliki dokumentasi dwibahasa: `README.md` (Bahasa Indonesia) dan `README.en.md` (English). Seluruh cuplikan logika aplikasi menggunakan bahasa **Go (Golang)**.
+Setiap folder memiliki dokumentasi dwibahasa: `README.md` (Bahasa Indonesia) dan `README.en.md` (English). Seluruh cuplikan logika aplikasi menggunakan bahasa **Go (Golang)** dan konfigurasi terstandar.
 
 ### 1. Architecture & Scaling (`architecture-and-scaling/`)
 - [Horizontal Scaling](architecture-and-scaling/horizontal-scaling/README.md) - Penskalaan elastis dengan menambah jumlah node server tanpa status (*stateless*).
@@ -125,6 +127,11 @@ Setiap folder memiliki dokumentasi dwibahasa: `README.md` (Bahasa Indonesia) dan
 - [Apache Kafka](tools-and-technologies/kafka/README.md) - Platform event streaming terdistribusi berbasis log untuk menampung jutaan event per detik.
 - [PostgreSQL](tools-and-technologies/postgresql/README.md) - Database relasional enterprise dengan konkurensi MVCC, WAL, dan integritas data ACID mutlak.
 - [NGINX](tools-and-technologies/nginx/README.md) - Web server dan asynchronous reverse proxy berkinerja tinggi untuk SSL offloading dan traffic buffering.
+- [Jenkins](tools-and-technologies/jenkins/README.md) - Server otomatisasi CI/CD mandiri (*self-hosted*) untuk orkestrasi pipeline pengujian dan rilis kode.
+- [RabbitMQ](tools-and-technologies/rabbitmq/README.md) - Message broker AMQP dengan routing fleksibel (Exchanges & Queues) dan konfirmasi per-pesan.
+- [Elasticsearch](tools-and-technologies/elasticsearch/README.md) - Mesin pencari teks dan analitik terdistribusi berbasis Inverted Index dan scoring BM25.
+- [PgBouncer](tools-and-technologies/pgbouncer/README.md) - Reverse connection pooler ringan penyelamat PostgreSQL dari kehabisan koneksi (*connection exhaustion*).
+- [HAProxy](tools-and-technologies/haproxy/README.md) - Load balancer Layer 4 & 7 berkinerja tinggi dengan efisiensi memori ekstrem dan health check presisi.
 
 ### 9. Monitoring & Observability (`monitoring-and-observability/`)
 - [Prometheus](monitoring-and-observability/prometheus/README.md) - Sistem pemantauan metrik time-series berbasis pull-model dan evaluasi PromQL real-time.
@@ -136,6 +143,6 @@ Setiap folder memiliki dokumentasi dwibahasa: `README.md` (Bahasa Indonesia) dan
 
 ## Panduan Belajar
 
-1. **Ikuti urutan layer**: Disarankan membaca berurutan dari layer fondasi penskalaan (`architecture-and-scaling`), gerbang luar (`traffic-and-edge`), data, fault tolerance, sistem asinkron, infrastruktur, protokol, tools, hingga monitoring (`monitoring-and-observability`) agar terbangun mental model menyeluruh.
+1. **Ikuti urutan layer**: Disarankan membaca berurutan dari layer fondasi penskalaan (`architecture-and-scaling`), gerbang luar (`traffic-and-edge`), data, fault tolerance, sistem asinkron, infrastruktur, protokol, perangkat lunak konkret (`tools-and-technologies`), hingga monitoring (`monitoring-and-observability`) agar terbangun mental model menyeluruh.
 2. **Perhatikan bagian Trade-offs dan Gotchas**: Dalam arsitektur sistem, tidak ada solusi yang sempurna; yang ada hanyalah pertukaran konsekuensi (*trade-offs*).
 3. **Pahami skenario sistemnya**: Setiap topik diawali dengan skenario arsitektur nyata di industri untuk memberikan konteks mengapa teknologi tersebut mutlak dibutuhkan saat trafik meledak.

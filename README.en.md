@@ -8,7 +8,7 @@ Here, we cover not just theory, but real-world industrial scenarios, why a techn
 
 ---
 
-## Curriculum Roadmap (9 Architectural Layers - 35 Topics)
+## Curriculum Roadmap (9 Architectural Layers - 40 Topics)
 
 All curriculum modules are categorized into 9 primary directories reflecting the lifecycle of a request from system scaling foundations, external ingress, data acceleration, operational infrastructure, concrete tooling, to production observability:
 
@@ -63,13 +63,15 @@ All curriculum modules are categorized into 9 primary directories reflecting the
 | tools-and-technologies/ (Concrete High-Throughput Software)             |
 | 26. Docker               27. Kubernetes          28. Redis              |
 | 29. Apache Kafka         30. PostgreSQL          31. NGINX              |
+| 32. Jenkins              33. RabbitMQ            34. Elasticsearch      |
+| 35. PgBouncer            36. HAProxy                                    |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | monitoring-and-observability/ (Production Monitoring & Reliability)     |
-| 32. Prometheus           33. Grafana             34. OpenTelemetry      |
-| 35. Centralized Logging                                                 |
+| 37. Prometheus           38. Grafana             39. OpenTelemetry      |
+| 40. Centralized Logging                                                 |
 +-------------------------------------------------------------------------+
 ```
 
@@ -77,7 +79,7 @@ All curriculum modules are categorized into 9 primary directories reflecting the
 
 ## Complete Topic Directory
 
-Every folder contains bilingual documentation: `README.md` (Indonesian) and `README.en.md` (English). All backend implementation examples are written in **Go (Golang)**.
+Every folder contains bilingual documentation: `README.md` (Indonesian) and `README.en.md` (English). All backend implementation examples are written in **Go (Golang)** or verified production configuration formats.
 
 ### 1. Architecture & Scaling (`architecture-and-scaling/`)
 - [Horizontal Scaling](architecture-and-scaling/horizontal-scaling/README.en.md) - Elastic capacity expansion by adding stateless worker nodes in parallel.
@@ -125,6 +127,11 @@ Every folder contains bilingual documentation: `README.md` (Indonesian) and `REA
 - [Apache Kafka](tools-and-technologies/kafka/README.en.md) - Distributed append-only log streaming platform handling millions of events/sec.
 - [PostgreSQL](tools-and-technologies/postgresql/README.en.md) - Enterprise relational database engine featuring MVCC concurrency and strict ACID durability.
 - [NGINX](tools-and-technologies/nginx/README.en.md) - Asynchronous event-driven web server and reverse proxy for high-concurrency buffering and TLS termination.
+- [Jenkins](tools-and-technologies/jenkins/README.en.md) - Self-hosted CI/CD automation server orchestrating distributed pipelines and deployment gates.
+- [RabbitMQ](tools-and-technologies/rabbitmq/README.en.md) - AMQP message broker providing flexible exchange routing and per-message manual acknowledgments.
+- [Elasticsearch](tools-and-technologies/elasticsearch/README.en.md) - Distributed full-text search and analytics engine powered by Inverted Indexes and BM25 scoring.
+- [PgBouncer](tools-and-technologies/pgbouncer/README.en.md) - Lightweight connection pooler shielding PostgreSQL from high-concurrency connection starvation.
+- [HAProxy](tools-and-technologies/haproxy/README.en.md) - High-throughput Layer 4 & Layer 7 load balancer renowned for memory efficiency and health detection.
 
 ### 9. Monitoring & Observability (`monitoring-and-observability/`)
 - [Prometheus](monitoring-and-observability/prometheus/README.en.md) - Pull-based time-series metrics monitoring with real-time PromQL querying.
@@ -136,6 +143,6 @@ Every folder contains bilingual documentation: `README.md` (Indonesian) and `REA
 
 ## Study Guide
 
-1. **Follow the Layer Hierarchy**: We recommend reading sequentially starting from architectural foundations (`architecture-and-scaling`), outer edge ingress (`traffic-and-edge`), data access, resilience, asynchronous messaging, delivery, protocols, tools, and finally observability (`monitoring-and-observability`).
+1. **Follow the Layer Hierarchy**: We recommend reading sequentially starting from architectural foundations (`architecture-and-scaling`), outer edge ingress (`traffic-and-edge`), data access, resilience, asynchronous messaging, delivery, protocols, tools (`tools-and-technologies`), and finally observability (`monitoring-and-observability`).
 2. **Pay Close Attention to Trade-offs & Gotchas**: In distributed architecture, there are no perfect solutions—only strategic trade-offs.
 3. **Understand the Real-World Scenario**: Every topic begins with an industrial production scenario demonstrating precisely why that pattern is indispensable when traffic surges.
