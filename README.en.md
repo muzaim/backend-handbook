@@ -8,7 +8,7 @@ Here, we cover not just theory, but real-world industrial scenarios, why a techn
 
 ---
 
-## Curriculum Roadmap (10 Architectural Layers - 45 Topics)
+## Curriculum Roadmap (10 Architectural Layers - 47 Topics)
 
 All curriculum modules are categorized into 10 primary directories reflecting the lifecycle of a request from system scaling foundations, external ingress, security/identity, data acceleration, system resilience, asynchronous communication, operational delivery, high-performance protocols, concrete tooling, to production observability:
 
@@ -22,63 +22,64 @@ All curriculum modules are categorized into 10 primary directories reflecting th
 +-------------------------------------------------------------------------+
 | traffic-and-edge/ (Ingress Gateway, CORS, & Traffic Control)            |
 | 3. Reverse Proxies       4. API Gateways         5. Load Balancing      |
-| 6. Rate Limiting         7. CORS                                        |
+| 6. Rate Limiting         7. CORS                 8. BFF Pattern         |
+| 9. API Versioning                                                       |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | security-and-identity/ (Distributed Authentication & Access Security)   |
-| 8. JWT Authentication & Token Lifecycle                                 |
+| 10. JWT Authentication & Token Lifecycle                                |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | performance-and-data/ (Acceleration, Migration, & Fast Data Access)     |
-| 9. Caching               10. Database Indexing   11. SQL vs NoSQL       |
-| 12. Database Pagination  13. Zero-Downtime DB Migrations                |
+| 11. Caching              12. Database Indexing   13. SQL vs NoSQL       |
+| 14. Database Pagination  15. Zero-Downtime DB Migrations                |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | resilience-and-fault-tolerance/ (Reliability & Fault Handling)          |
-| 14. Timeouts             15. Retries             16. Exp. Backoff       |
-| 17. Circuit Breakers     18. Idempotency         19. Dist. Locking      |
+| 16. Timeouts             17. Retries             18. Exp. Backoff       |
+| 19. Circuit Breakers     20. Idempotency         21. Dist. Locking      |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | async-and-distributed-systems/ (Large-Scale Communication)               |
-| 20. Message Queues       21. Pub/Sub             22. Event-Driven Arch  |
-| 23. Dist. Transactions   24. Saga Pattern                               |
+| 22. Message Queues       23. Pub/Sub             24. Event-Driven Arch  |
+| 25. Dist. Transactions   26. Saga Pattern                               |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | infrastructure-and-delivery/ (Operational Foundations & Delivery)       |
-| 25. Service Discovery    26. CI/CD                                      |
+| 27. Service Discovery    28. CI/CD                                      |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | protocols-and-realtime/ (High-Performance Protocols & Real-Time)        |
-| 27. gRPC & Protobuf      28. WebSockets & SSE    29. CDN & Edge Caching |
-| 30. Webhooks                                                            |
+| 29. gRPC & Protobuf      30. WebSockets & SSE    31. CDN & Edge Caching |
+| 32. Webhooks                                                            |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | tools-and-technologies/ (Concrete High-Throughput Software)             |
-| 31. Docker               32. Kubernetes          33. Redis              |
-| 34. Apache Kafka         35. PostgreSQL          36. NGINX              |
-| 37. Jenkins              38. RabbitMQ            39. Elasticsearch      |
-| 40. PgBouncer            41. HAProxy                                    |
+| 33. Docker               34. Kubernetes          35. Redis              |
+| 36. Apache Kafka         37. PostgreSQL          38. NGINX              |
+| 39. Jenkins              40. RabbitMQ            41. Elasticsearch      |
+| 42. PgBouncer            43. HAProxy                                    |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | monitoring-and-observability/ (Production Monitoring & Reliability)     |
-| 42. Prometheus           43. Grafana             44. OpenTelemetry      |
-| 45. Centralized Logging                                                 |
+| 44. Prometheus           45. Grafana             46. OpenTelemetry      |
+| 47. Centralized Logging                                                 |
 +-------------------------------------------------------------------------+
 ```
 
@@ -98,6 +99,8 @@ Every folder contains bilingual documentation: `README.md` (Indonesian) and `REA
 - [Load Balancing](traffic-and-edge/load-balancing/README.en.md) - Distributing traffic across server pools to avoid hotspot failures.
 - [Rate Limiting](traffic-and-edge/rate-limiting/README.en.md) - Traffic throttling to shield internal services from abuse and overloads.
 - [CORS (Cross-Origin Resource Sharing)](traffic-and-edge/cors/README.en.md) - Browser cross-origin security mechanism handling preflight OPTIONS, Access-Control headers, and preflight caching.
+- [Backend for Frontend (BFF)](traffic-and-edge/bff-pattern/README.en.md) - Client-tailored gateway aggregation pattern that minimizes chatty round-trips and payload overfetching across mobile, web, and external platforms.
+- [API Versioning & Deprecation](traffic-and-edge/api-versioning/README.en.md) - Evolution and contract management strategies across URI, Header, and Query parameters with standardized IETF Deprecation and Sunset governance.
 
 ### 3. Security & Identity (`security-and-identity/`)
 - [JWT Authentication](security-and-identity/jwt-authentication/README.en.md) - Stateless scalable token authentication with cryptographic verification, refresh token rotation, and distributed blacklisting.
