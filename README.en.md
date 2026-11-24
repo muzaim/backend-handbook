@@ -8,7 +8,7 @@ Here, we cover not just theory, but real-world industrial scenarios, why a techn
 
 ---
 
-## Curriculum Roadmap (10 Architectural Layers - 47 Topics)
+## Curriculum Roadmap (10 Architectural Layers - 48 Topics)
 
 All curriculum modules are categorized into 10 primary directories reflecting the lifecycle of a request from system scaling foundations, external ingress, security/identity, data acceleration, system resilience, asynchronous communication, operational delivery, high-performance protocols, concrete tooling, to production observability:
 
@@ -44,42 +44,43 @@ All curriculum modules are categorized into 10 primary directories reflecting th
 | resilience-and-fault-tolerance/ (Reliability & Fault Handling)          |
 | 16. Timeouts             17. Retries             18. Exp. Backoff       |
 | 19. Circuit Breakers     20. Idempotency         21. Dist. Locking      |
+| 22. Payment Idempotency                                                 |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | async-and-distributed-systems/ (Large-Scale Communication)               |
-| 22. Message Queues       23. Pub/Sub             24. Event-Driven Arch  |
-| 25. Dist. Transactions   26. Saga Pattern                               |
+| 23. Message Queues       24. Pub/Sub             25. Event-Driven Arch  |
+| 26. Dist. Transactions   27. Saga Pattern                               |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | infrastructure-and-delivery/ (Operational Foundations & Delivery)       |
-| 27. Service Discovery    28. CI/CD                                      |
+| 28. Service Discovery    29. CI/CD                                      |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | protocols-and-realtime/ (High-Performance Protocols & Real-Time)        |
-| 29. gRPC & Protobuf      30. WebSockets & SSE    31. CDN & Edge Caching |
-| 32. Webhooks                                                            |
+| 30. gRPC & Protobuf      31. WebSockets & SSE    32. CDN & Edge Caching |
+| 33. Webhooks                                                            |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | tools-and-technologies/ (Concrete High-Throughput Software)             |
-| 33. Docker               34. Kubernetes          35. Redis              |
-| 36. Apache Kafka         37. PostgreSQL          38. NGINX              |
-| 39. Jenkins              40. RabbitMQ            41. Elasticsearch      |
-| 42. PgBouncer            43. HAProxy                                    |
+| 34. Docker               35. Kubernetes          36. Redis              |
+| 37. Apache Kafka         38. PostgreSQL          39. NGINX              |
+| 40. Jenkins              41. RabbitMQ            42. Elasticsearch      |
+| 43. PgBouncer            44. HAProxy                                    |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | monitoring-and-observability/ (Production Monitoring & Reliability)     |
-| 44. Prometheus           45. Grafana             46. OpenTelemetry      |
-| 47. Centralized Logging                                                 |
+| 45. Prometheus           46. Grafana             47. OpenTelemetry      |
+| 48. Centralized Logging                                                 |
 +-------------------------------------------------------------------------+
 ```
 
@@ -119,6 +120,7 @@ Every folder contains bilingual documentation: `README.md` (Indonesian) and `REA
 - [Circuit Breakers](resilience-and-fault-tolerance/circuit-breakers/README.en.md) - Automatic circuit interruption protecting failing downstream services.
 - [Idempotency](resilience-and-fault-tolerance/idempotency/README.en.md) - Mathematical guarantee that repeated identical requests produce uniform state changes.
 - [Distributed Locking](resilience-and-fault-tolerance/distributed-locking/README.en.md) - Multi-instance concurrency synchronization using atomic Redis `SET NX PX` and safe identifier-matching Lua releases.
+- [Payment Idempotency & Deduplication](resilience-and-fault-tolerance/payment-idempotency/README.en.md) - Financial transaction deduplication pattern preventing double charges via `Idempotency-Key` headers, SHA-256 payload fingerprinting, and cached response replays.
 
 ### 6. Asynchronous & Distributed Systems (`async-and-distributed-systems/`)
 - [Message Queues](async-and-distributed-systems/message-queues/README.en.md) - Point-to-point asynchronous messaging acting as shock absorbers during traffic spikes.

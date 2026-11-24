@@ -8,7 +8,7 @@ Di sini, kita tidak hanya membahas teori, tetapi juga skenario sistem nyata, ala
 
 ---
 
-## Peta Kurikulum (10 Kategori Arsitektur - 47 Topik)
+## Peta Kurikulum (10 Kategori Arsitektur - 48 Topik)
 
 Seluruh materi di dalam repositori ini dikelompokkan ke dalam 10 folder kategori utama untuk mencerminkan perjalanan sebuah request dari fondasi penskalaan, lapisan pintu masuk trafik, identitas/keamanan, pemrosesan data, ketahanan sistem, sistem asinkron, delivery, protokol, perangkat lunak konkret, hingga pemantauan sistem produksi:
 
@@ -44,42 +44,43 @@ Seluruh materi di dalam repositori ini dikelompokkan ke dalam 10 folder kategori
 | resilience-and-fault-tolerance/ (Ketahanan & Penanganan Masalah)        |
 | 16. Timeouts             17. Retries             18. Exp. Backoff       |
 | 19. Circuit Breakers     20. Idempotency         21. Dist. Locking      |
+| 22. Payment Idempotency                                                 |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | async-and-distributed-systems/ (Komunikasi Skala Besar)                 |
-| 22. Message Queues       23. Pub/Sub             24. Event-Driven Arch  |
-| 25. Dist. Transactions   26. Saga Pattern                               |
+| 23. Message Queues       24. Pub/Sub             25. Event-Driven Arch  |
+| 26. Dist. Transactions   27. Saga Pattern                               |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | infrastructure-and-delivery/ (Fondasi Operasional & Deployment)         |
-| 27. Service Discovery    28. CI/CD                                      |
+| 28. Service Discovery    29. CI/CD                                      |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | protocols-and-realtime/ (Protokol Berperforma Tinggi & Real-Time)       |
-| 29. gRPC & Protobuf      30. WebSockets & SSE    31. CDN & Edge Caching |
-| 32. Webhooks                                                            |
+| 30. gRPC & Protobuf      31. WebSockets & SSE    32. CDN & Edge Caching |
+| 33. Webhooks                                                            |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | tools-and-technologies/ (Perangkat Lunak Konkret High-Throughput)       |
-| 33. Docker               34. Kubernetes          35. Redis              |
-| 36. Apache Kafka         37. PostgreSQL          38. NGINX              |
-| 39. Jenkins              40. RabbitMQ            41. Elasticsearch      |
-| 42. PgBouncer            43. HAProxy                                    |
+| 34. Docker               35. Kubernetes          36. Redis              |
+| 37. Apache Kafka         38. PostgreSQL          39. NGINX              |
+| 40. Jenkins              41. RabbitMQ            42. Elasticsearch      |
+| 43. PgBouncer            44. HAProxy                                    |
 +-------------------------------------------------------------------------+
                                     |
                                     v
 +-------------------------------------------------------------------------+
 | monitoring-and-observability/ (Pemantauan & Keandalan Sistem Produksi)  |
-| 44. Prometheus           45. Grafana             46. OpenTelemetry      |
-| 47. Centralized Logging                                                 |
+| 45. Prometheus           46. Grafana             47. OpenTelemetry      |
+| 48. Centralized Logging                                                 |
 +-------------------------------------------------------------------------+
 ```
 
@@ -119,6 +120,7 @@ Setiap folder memiliki dokumentasi dwibahasa: `README.md` (Bahasa Indonesia) dan
 - [Circuit Breakers](resilience-and-fault-tolerance/circuit-breakers/README.md) - Pemutus aliran request saat downstream service mulai sakit/tumbang.
 - [Idempotency](resilience-and-fault-tolerance/idempotency/README.md) - Jaminan bahwa request yang diproses berulang kali menghasilkan efek yang sama persis.
 - [Distributed Locking](resilience-and-fault-tolerance/distributed-locking/README.md) - Penjaga konkurensi antar-instance berbasis Redis atomic `SET NX PX` dan pelepasan kunci aman via Lua script identifier.
+- [Payment Idempotency & Deduplication](resilience-and-fault-tolerance/payment-idempotency/README.md) - Pola perlindungan transaksi fintech finansial terhadap double-charging via `Idempotency-Key`, payload SHA-256 fingerprinting, dan cached response replay.
 
 ### 6. Asynchronous & Distributed Systems (`async-and-distributed-systems/`)
 - [Message Queues](async-and-distributed-systems/message-queues/README.md) - Antrean pesan asynchronous berbasis point-to-point untuk peredam lonjakan trafik.
