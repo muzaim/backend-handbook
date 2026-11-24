@@ -168,8 +168,24 @@ func (l *DistributedLocker) ReleaseLock(ctx context.Context, resourceKey string,
 
 ## 9. Studi Kasus Industri Nyata
 
-- **Ticketmaster**: Menggunakan distributed lock berkecepatan tinggi untuk menahan hak reservasi kursi selama 5 menit saat pengguna memilih nomor kursi di denah stadion, memastikan jutaan penonton tidak pernah berebut kursi yang sama.
-- **Tokopedia / Shopee**: Pada event Flash Sale tengah malam, jutaan pengguna berebut 10 unit smartphone diskon 90%. Distributed locking di layer Redis menyaring 99.9% request dalam hitungan milidetik sehingga hanya 10 pembeli tercepat yang dialirkan ke antrean pembayaran database.
+### Eliminasi Bencana Overselling pada Flash Sale E-Commerce Berskala 80.000 RPS
+
+- **Tantangan Rekayasa Riil (The Problem)**:
+  Pada sebuah platform belanja daring, 10 unit laptop promosi diskon 90% diperebutkan oleh 80.000 pengguna dalam waktu bersamaan tepat pada pukul 00:00:00. Backend aplikasi berjalan di atas 40 container pod Go independen di balik Kubernetes. Karena sistem tersebar di banyak mesin, `sync.Mutex` lokal Go tidak berguna karena hanya mengunci memori satu container. Kode awal mengeksekusi pengecekan stok langsung ke database PostgreSQL:
+  `SELECT stock FROM items WHERE id = 101;` lalu `UPDATE items SET stock = stock - 1 WHERE id = 101;`  
+  Terjadi bencana konkurensi terdistribusi (*Distributed Race Condition*): 40 pod membaca nilai `stock = 10` pada milidetik yang sama sebelum transaksi lain sempat menuliskannya kembali. Hasilnya fatal: 340 pesanan checkout berhasil diterbitkan dan dibayar oleh pelanggan, padahal stok fisik di gudang hanya 10 unit (*negative inventory overselling*). Perusahaan menanggung kerugian ganti rugi ratusan juta rupiah akibat pesanan yang terlanjur terkonfirmasi.
+
+- **Implementasi Solusi Industri (The Architectural Solution)**:
+  1. **Atomic In-Memory Mutex Acquisition**: Setiap transaksi checkout wajib memperebutkan lock terdistribusi di Redis Cluster sebelum menyentuh database:
+     `SET lock:inventory:item:101 {uuid_token} NX PX 2500`  
+     Operasi ini berlangsung murni di memori RAM Redis (< 0.4ms). Tepat 1 pod yang berhasil merebut kunci per siklus pengurangan stok, sementara puluhan ribu request kompetitor lainnya langsung menerima respon gagal cepat (*fail-fast*) "Stok sedang diperebutkan" tanpa membebani database.
+  2. **Safe Lua Script Release**: Begitu pemotongan stok di database PostgreSQL selesai, worker melepaskan lock menggunakan script Lua atomik yang memeriksa apakah token nilai kunci masih sama dengan UUID miliknya. Hal ini mencegah skenario di mana worker yang terlambat secara tidak sengaja menghapus lock milik worker lain yang baru masuk.
+  3. **Optimistic Locking Fencing Token**: Di layer database PostgreSQL, update stok diproteksi ganda dengan klausa versi: `WHERE id = 101 AND stock > 0`, menjamin bahwa integritas stok terlindungi secara bertingkat (*defense in depth*).
+
+- **Dampak & Hasil Sistem (The Engineering Outcome)**:
+  - Anomali overselling dan stok minus tereliminasi hingga 0 kasus: tepat 10 unit laptop yang berhasil terjual dan dibayar.
+  - Beban transaksi yang menghantam database PostgreSQL anjlok sebesar 99.8%, karena 79.990 request kontensi disaring langsung di pintu gerbang Redis dalam hitungan sub-milidetik.
+  - Database terbebas dari *row-level lock contention* dan deadlock yang biasanya melumpuhkan sistem saat flash sale berlangsung.
 
 ## 10. Jebakan Umum di Lingkungan Produksi (Gotchas)
 
@@ -180,4 +196,7 @@ func (l *DistributedLocker) ReleaseLock(ctx context.Context, resourceKey string,
 
 ## 11. Rangkuman Singkat
 
-Distributed Locking adalah penjaga integritas konkurensi data di arsitektur multi-server berskala besar. Dengan mengombinasikan instruksi atomik Redis (`SET NX PX`), token kepemilikan unik (UUID), dan pelepasan kunci berbasis script Lua, distributed locking menjamin bahwa transaksi kritis terbebas dari malapetaka race condition dan double-booking.
+1. **Koordinasi Konkurensi Lintas Node**: Menggantikan keterbatasan mutex lokal untuk menjamin bahwa hanya tepat 1 proses yang dapat mengeksekusi operasi kritis di lingkungan kluster multi-server.
+2. **Pola Wajib `SET NX PX` + Nilai UUID**: Selalu gunakan masa kedaluwarsa otomatis (TTL) untuk mencegah *deadlock* abadi saat server crash, dan sertakan token UUID acak sebagai bukti kepemilikan sah.
+3. **Pelepasan Kunci Wajib Atomik (Lua Script)**: Selalu gunakan script Lua untuk memverifikasi token kepemilikan sebelum menghapus kunci, mencegah penghapusan kunci milik worker lain secara tidak sengaja.
+4. **Pertahanan Berlapis (*Defense in Depth*)**: Kombinasikan distributed lock di layer cache/memori dengan constraint database (seperti pengecekan `stock > 0`) untuk menjamin integritas data 100%.

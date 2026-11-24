@@ -177,8 +177,11 @@ Untuk memonitor kesehatan arsitektur berbasis event pada Grafana / Datadog:
 
 ## 9. Studi Kasus Nyata di Industri
 
--   **Netflix Media Processing Pipeline**: Netflix mengelola ribuan transkoding video, pembuatan thumbnail, dan subtitle melalui arsitektur berbasis event. Ketika studio memuat file master film baru, serangkaian event independen memicu worker rendering di berbagai region cloud tanpa ada dependensi sinkron antar service.
--   **DoorDash Real-Time Driver Dispatch**: DoorDash menggunakan event streams untuk mengalirkan update GPS kurir dan status pesanan restoran. Algoritma pencocokan pengemudi mendengarkan aliran event secara real-time untuk memasangkan kurir terdekat dengan restoran yang makanannya hampir selesai dimasak.
+### Resolusi Dual-Write dan Koordinasi Order-to-Fulfillment pada E-Commerce Skala Besar
+
+- **Tantangan Rekayasa Riil (The Problem)**: Arsitektur monolit e-commerce yang melayani 35.000 pesanan per menit awalnya menggunakan rantai pemanggilan HTTP sinkron: Order Service memanggil Payment Gateway, lalu Inventory Service, lalu Notification Service. Ketika Inventory Service mengalami latensi tinggi (5 detik) atau downtime sesaat, request pemesanan pengguna timed out, mengakibatkan pembayaran terpotong tanpa stok berkurang atau order gagal tercatat di database (inkonsistensi status dual-write).
+- **Implementasi Solusi Industri (The Architectural Solution)**: Rekayasa ulang arsitektur menjadi *Event-Driven* dengan menerapkan *Transactional Outbox Pattern*. Saat user membuat order, Order Service menulis data pesanan dan event `OrderCreated` ke PostgreSQL dalam satu transaksi ACID lokal atomik. Debezium CDC (Change Data Capture) membaca WAL log PostgreSQL dan mem-publish event tersebut ke Apache Kafka topic berpartisi secara asynchronous. Layanan Inventory, Payment, dan Notification mengonsumsi event ini secara independen dengan checkpointing offset dan tabel deduplikasi idempotensi.
+- **Dampak & Hasil Sistem (The Outcome)**: Latensi p99 endpoint pembuatan pesanan terpangkas drastis dari 4.800 ms menjadi 120 ms. Kegagalan cascade di downstream service tereliminasi sepenuhnya (zero cascading failure), dan anomali dual-write order/payment turun hingga 0%. Downtime parsial pada Notification Service tidak lagi menggagalkan checkout pembeli.
 
 ## 10. Fakta Menarik & Gotchas Production: The Dual-Write Problem
 
@@ -201,3 +204,10 @@ Sebaliknya, jika baris 2 ditaruh di awal, Kafka menerima event tetapi transaksi 
 
 **Solusi Standar Industri: Transactional Outbox Pattern:**  
 Simpan data order dan data event ke dalam tabel `outbox` di dalam **SATU TRANSAKSI DATABASE LOKAL YANG ATOMIK** (PostgreSQL Transaction). Kemudian, gunakan proses background terpisah (seperti Debezium / CDC - Change Data Capture) untuk membaca tabel outbox dan mem-publish-nya ke Kafka dengan jaminan 100% konsisten!
+
+## 11. Rangkuman Singkat
+
+- **Loose Temporal Coupling**: Arsitektur event-driven melepaskan ketergantungan waktu antara produsen dan konsumen; produsen memancarkan fakta (event) tanpa memedulikan kapan atau bagaimana downstream mengeksekusinya.
+- **Wajib Mitigasi Dual-Write**: Jangan pernah memanggil `db.Save()` dan `broker.Publish()` secara sekuensial tanpa proteksi; gunakan *Transactional Outbox Pattern* dengan CDC (Debezium) untuk menjamin atomisitas.
+- **Konsistensi Bertahap (Eventual Consistency)**: Terima bahwa data lintas sistem tidak akan instan identik; rancang alur bisnis dan antarmuka pengguna yang adaptif terhadap latensi propagasi event.
+- **Desain Idempotensi di Konsumen**: Jaminan pengiriman broker hampir selalu *at-least-once*; setiap consumer wajib mengimplementasikan pengecekan ID event (deduplikasi) agar tidak memproses ulang event yang sama.

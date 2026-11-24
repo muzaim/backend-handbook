@@ -159,10 +159,20 @@ Observability metrics to track dynamic service discovery health on Grafana or Da
 
 ## 9. Real-World Case Studies
 
-- **Netflix Eureka Service Discovery**: During their migration to cloud microservices on AWS, Netflix created Eureka to manage tens of thousands of dynamic instances appearing and disappearing across multiple availability zones. Client-side caching (Ribbon) allowed streaming traffic to flow seamlessly even during full Eureka registry outages.
-- **HashiCorp Consul at Enterprise Scale**: Global fintech platforms leverage Consul's Gossip-based mesh protocol to discover and securely route traffic across multi-region hybrid cloud deployments without manual static DNS records.
+### Dynamic Routing Resolution in a 10,000-Pod Kubernetes Cluster
+
+- **The Engineering Problem**: An on-demand logistics platform scaled 120 microservices dynamically from 1,000 to 10,000 pods during seasonal surges. Internal traffic was originally routed via centralized internal Nginx instances with static upstream blocks refreshed by cron scripts. During rapid pod termination and churn, reload race conditions caused 5% to 8% of internal RPCs to fail with `502 Bad Gateway` as requests hit deallocated container IPs (traffic blackholing).
+- **The Architectural Solution**: The infrastructure was migrated to dynamic service discovery using *Kubernetes EndpointSlices* and *Envoy sidecar proxies*. Envoy instances ingested live endpoint state over gRPC Endpoint Discovery Service (EDS) streams without requiring process restarts. The team added Kubernetes container lifecycle `preStop` hooks (a 5-second sleep) to ensure Endpoint controllers purged pod IPs from the routing mesh before termination signals reached the application container, backed by aggressive readiness probes.
+- **The System Outcome**: Inter-service 502 errors during deployment rollouts and autoscaling dropped from 6.5% to 0.001%. Endpoint convergence time decreased from 45 seconds to under 200 ms. Router CPU spikes caused by frequent process reloads were completely eliminated.
 
 ## 10. Interesting Facts & Production Gotchas
 
 - **The Infamous Java JVM DNS Cache Gotcha**: In standard Oracle and OpenJDK runtimes, the default security policy caches DNS hostname resolutions with **`networkaddress.cache.ttl = -1` (meaning: CACHE FOREVER)**! When a Kubernetes pod terminates and its IP changes, Java services continue pounding the deceased IP address indefinitely, throwing millions of `ConnectException` errors. In cloud environments, always explicitly configure JVM security properties: set `networkaddress.cache.ttl` to a low value like 5 to 10 seconds!
 - **Deregistration Lag & Blackholing**: When a pod shuts down ungracefully, a brief multi-second gap occurs before the Registry acknowledges the missing heartbeat and purges the entry. Upstream callers may continue routing traffic to the dead socket during this window. Always combine Service Discovery with **Graceful Shutdown Hooks (`preStop`)** and **Client-Side Retries with Short Timeouts**.
+
+## 11. Key Takeaways
+
+- **Container IP Ephemerality**: Container IPs in modern clouds change constantly; service discovery dynamically maps logical service names to healthy socket pools.
+- **Client-Side vs Server-Side Trade-offs**: Client-side discovery (Consul/Ribbon) reduces network hops by load-balancing in-process, whereas server-side discovery (K8s Service/ALB) keeps microservice code clean and language-agnostic.
+- **Prevent Traffic Blackholing**: Utilize pod termination hooks (`preStop`) and strict health checks so instances are deregistered from routing tables before accepting socket closures.
+- **Tame Long-Lived DNS Caching**: Configure application HTTP client runtimes (especially the JVM) with low DNS TTL limits (3-10 seconds) to avoid persistent connection failures to dead IPs.

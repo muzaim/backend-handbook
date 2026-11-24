@@ -167,10 +167,20 @@ Untuk memonitor performa dan resolusi service discovery pada Grafana / Datadog:
 
 ## 9. Studi Kasus Nyata di Industri
 
--   **Netflix Eureka Service Discovery**: Di puncak migrasi arsitektur microservices mereka di AWS, Netflix merancang Eureka untuk menangani puluhan ribu instance server yang terus menyala dan mati di berbagai availability zones. Client Netflix (Ribbon) menyimpan cache lokal daftar server sehingga jika server Eureka mati, sistem tetap dapat beroperasi normal.
--   **HashiCorp Consul di Skala Enterprise**: Consul menyediakan service mesh dan discovery terdistribusi multi-datacenter berbasis protokol Gossip (Serf). Perusahaan fintech global menggunakan Consul untuk merutekan ribuan transaksi lintas region tanpa ketergantungan pada DNS manual.
+### Resolusi Routing Dinamis pada Kluster Kubernetes Skala 10.000 Pods
+
+- **Tantangan Rekayasa Riil (The Problem)**: Sebuah platform logistik on-demand mengoperasikan 120 microservices dengan autoscaling agresif (lonjakan dari 1.000 menjadi 10.000 pods saat flash sale). Sistem awalnya menggunakan server Nginx load balancer internal dengan upstream IP statis yang diperbarui lewat script reload. Ketika pods mati atau berpindah host secara cepat, script reload Nginx mengalami race condition, menyebabkan 5-8% request trafik internal mengalami `502 Bad Gateway` karena diarahkan ke IP pod yang sudah terminate (blackholing traffic).
+- **Implementasi Solusi Industri (The Architectural Solution)**: Tim mengadopsi Service Discovery dinamis berbasis *CoreDNS* dan *Envoy Service Mesh*. Setiap service didaftarkan otomatis ke K8s EndpointSlice. Envoy sidecar proxy mengonsumsi update endpoint melalui protokol gRPC Endpoint Discovery Service (EDS) secara real-time tanpa reload konfigurasi proses. Ditambahkan lifecycle hook `preStop` (sleep 5 detik) pada setiap pod untuk memberi waktu registry menghapus IP pod dari routing table sebelum container dimatikan, didukung health check probing agresif.
+- **Dampak & Hasil Sistem (The Outcome)**: Tingkat error 502 saat autoscaling dan rolling deployment anjlok dari 6,5% menjadi 0,001%. Latensi propagasi penemuan pod baru terpangkas dari 45 detik menjadi < 200 ms. Utilisasi memori load balancer stabil tanpa lonjakan CPU reload berkala.
 
 ## 10. Fakta Menarik & Gotchas Production
 
 -   **The Infamous Java DNS Caching Gotcha**: Di JVM (Java Virtual Machine), settingan default resolusi nama DNS untuk keamanan jaringan sering kali bernilai **`networkaddress.cache.ttl = -1` (artinya: CACHE FOREVER / Simpan Selamanya)**! Akibatnya, saat pod K8s berganti IP, aplikasi Java-mu akan terus-menerus menembak alamat IP lama yang sudah mati dan melemparkan jutaan error `ConnectException`. Selalu setel konfigurasi JVM `networkaddress.cache.ttl` ke angka kecil (misal 5 hingga 10 detik)!
 -   **Deregistration Delay**: Saat pod dimatikan secara mendadak, ada jeda waktu beberapa detik antara proses mati dengan terhapusnya IP dari Service Registry. Selama jeda waktu itu, request yang dikirimkan client masih bisa tersasar ke pod yang sudah mati. Solusinya: implementasikan **Graceful Shutdown** dan mekanisme **Retries otomatis dengan timeout pendek** di sisi client.
+
+## 11. Rangkuman Singkat
+
+- **Alamat Jaringan Efemeral**: Di lingkungan kontainer (Kubernetes/Cloud), IP pod terus berubah karena autoscaling dan deployment; service discovery mengotomatiskan pemetaan nama ke IP secara real-time.
+- **Client-Side vs Server-Side**: Client-side discovery (misal Consul SDK / Ribbon) menghemat hop load balancer, sementara server-side discovery (K8s Service / AWS ALB) menjaga kode aplikasi tetap bersih dan agnostik terhadap teknologi.
+- **Cegah Blackholing Trafik**: Terapkan graceful shutdown (`preStop` sleep) dan health checks aktif agar pod yang hendak mati dihapus dari registry sebelum memutus koneksi aktif.
+- **Waspadai Cache DNS Abadi**: Pastikan library HTTP dan runtime aplikasi (khususnya JVM) menghormati TTL DNS yang rendah (3-10 detik) agar tidak terus menembak IP pod yang sudah musnah.

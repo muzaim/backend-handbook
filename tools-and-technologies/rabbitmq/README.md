@@ -212,8 +212,11 @@ func processOrder(payload []byte) bool {
 
 ## 9. Studi Kasus Industri Nyata
 
--   **Reddit**: Menggunakan RabbitMQ secara masif sebagai antrean pemrosesan asynchronous untuk mendistribusikan vote, kalkulasi karma pengguna, serta moderasi komentar spam sebelum disimpan ke basis data permanen.
--   **Zomato**: Layanan pesan antar makanan terkemuka yang menggunakan RabbitMQ untuk mengorkestrasi alur pesanan dari pelanggan, restoran, hingga alokasi kurir terdekat dengan routing key geografis.
+### Penanganan Antrean Notifikasi dan Pengiriman Asinkron dengan Routing AMQP Fleksibel
+
+- **Tantangan Rekayasa Riil (The Problem)**: Sebuah platform ride-hailing dan pesan-antar makanan memproses jutaan pembaruan status pesanan per hari. Awalnya, alur notifikasi dikirim secara sinkron: saat restoran mengklik "Makanan Siap", server memanggil API push notification Firebase, SMS gateway, dan notifikasi WhatsApp secara berurutan. Ketika gateway SMS mengalami latensi tinggi (8 detik) atau batas kuota third-party tercapai, request API tertahan, koneksi HTTP backend jenuh, dan kurir tidak mendapat sinyal jemputan tepat waktu.
+- **Implementasi Solusi Industri (The Architectural Solution)**: Tim merancang arsitektur asynchronous task queue menggunakan *RabbitMQ* dengan pertukaran berbasis Topic Exchange (`order.events`). Saat status pesanan berubah, backend menerbitkan pesan ke exchange dengan routing key seperti `order.food.ready`. RabbitMQ merutekan pesan ke beberapa antrean independen (`push_queue`, `sms_queue`, `webhook_queue`) berdasarkan wildcard routing. Consumer dikonfigurasi dengan *Manual ACK* dan `Prefetch Count = 20` untuk mendistribusikan beban secara seimbang. Pesan yang gagal diproses setelah 3 kali retry secara otomatis dialihkan ke *Dead Letter Exchange (DLX)* untuk dianalisis tim on-call tanpa menyumbat antrean utama.
+- **Dampak & Hasil Sistem (The Outcome)**: Latensi respons endpoint restoran turun dari 8.500 ms menjadi 18 ms. Seluruh notifikasi dikirimkan secara paralel tanpa saling mempengaruhi. Tingkat kegagalan pengiriman akibat SMS gateway timeout turun menjadi 0% berkat mekanisme retry terisolasi, dan penggunaan CPU backend stabil tanpa ancaman *cascading thread exhaustion*.
 
 ## 10. Jebakan Umum di Lingkungan Produksi (Gotchas)
 
@@ -225,4 +228,7 @@ func processOrder(payload []byte) bool {
 
 ## 11. Rangkuman Singkat
 
-RabbitMQ adalah message broker AMQP tangguh yang unggul dalam routing fleksibel, latensi rendah, dan kontrol pesan per-item melalui konfirmasi eksplisit (ACK/NACK). RabbitMQ adalah pilihan utama untuk sistem antrean tugas asinkron dan komunikasi decoupled antar microservices yang menuntut jaminan pengiriman presisi.
+- **Pola Pertukaran AMQP yang Sangat Fleksibel**: RabbitMQ menyediakan fitur routing cerdas (Direct, Fanout, Topic, Headers) yang memisahkan produser dari antrean fisik melalui konsep Exchange.
+- **Wajib Setel Prefetch Count (QoS)**: Batasi jumlah pesan yang dikirim ke satu worker (`ch.Qos(prefetch, 0, false)`) agar RabbitMQ tidak membanjiri satu consumer hingga crash OOM sementara worker lain menganggur.
+- **Kontrol ACK/NACK Granular**: RabbitMQ mengelola status tiap pesan secara individual; gunakan konfirmasi manual agar pesan yang gagal diproses dapat di-requeue atau dialihkan ke Dead Letter Exchange (DLX).
+- **Hindari Pembukaan Koneksi AMQP Berulang**: AMQP connection adalah soket TCP jangka panjang yang mahal; buat satu koneksi persisten dan buka channel ringan untuk setiap operasi goroutine.

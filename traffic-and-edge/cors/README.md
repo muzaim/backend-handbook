@@ -158,8 +158,21 @@ func CORSMiddleware(next http.Handler) http.Handler {
 
 ## 9. Studi Kasus Industri Nyata
 
-- **Stripe & PayPal Checkout**: Menyediakan widget pembayaran embeddable (*Stripe Elements*). Backend Stripe mengonfigurasi header CORS secara dinamis agar iframe pembayaran aman dapat disematkan di jutaan domain toko online merchant yang berbeda tanpa membocorkan kredensial kartu kredit ke pemilik website toko.
-- **GitHub API**: Mengizinkan akses publik lintas domain (`Access-Control-Allow-Origin: *`) pada endpoint publik `/users` atau `/repos` untuk mendukung jutaan integrasi web pihak ketiga di seluruh dunia.
+### Optimasi Preflight OPTIONS & Multi-Tenant Ingress pada Platform E-Commerce
+
+- **Tantangan Rekayasa Riil (The Problem)**:
+  Sebuah platform SaaS e-commerce mengelola ribuan toko online independen dengan domain kustom (`brand-a.com`, `brand-b.id`) yang seluruhnya memanggil API checkout terpusat di `api.commerce.com`. Developer awalnya menyetel `Access-Control-Allow-Origin: *`. Ketika sistem beralih menggunakan cookie sesi terenkripsi (`HttpOnly; SameSite=None; Secure`), seluruh browser pelanggan langsung memblokir transaksi checkout karena standar keamanan browser melarang pengiriman kredensial jika origin disetel wildcard `*`. Sebagai solusinya, tim memasang middleware yang memverifikasi domain toko ke database PostgreSQL pada setiap request `OPTIONS`. Hasilnya fatal: volume trafik ke database melonjak dua kali lipat akibat badai request `OPTIONS` (50.000 RPS), latensi checkout membengkak menjadi 650ms, dan koneksi database kolaps.
+
+- **Implementasi Solusi Industri (The Architectural Solution)**:
+  1. **Edge-Level Dynamic Origin Reflection**: Logika verifikasi CORS dipindahkan dari aplikasi backend ke reverse proxy edge (Envoy / Cloudflare Workers). Whitelist domain toko yang aktif di-cache ke dalam shared memory berkecepatan tinggi (*in-memory lookup* dalam 0.05ms) tanpa menyentuh database.
+  2. **Aggressive Preflight Caching**: Edge proxy menyertakan header `Access-Control-Max-Age: 86400` (24 jam) pada respon preflight, sehingga browser pelanggan hanya melakukan request `OPTIONS` satu kali sehari per domain toko.
+  3. **Immediate 204 No Content Termination**: Request preflight `OPTIONS` langsung dijawab di layer proxy dengan status `204 No Content` dan header CORS yang sesuai, membebaskan container backend Go dari keharusan memproses request preflight.
+  4. **Strict Header Whitelisting**: Hanya header bisnis yang dibutuhkan (`Authorization`, `Content-Type`, `X-Idempotency-Key`) yang dimasukkan ke `Access-Control-Allow-Headers`.
+
+- **Dampak & Hasil Sistem (The Engineering Outcome)**:
+  - Volume request `OPTIONS` ke cluster backend Go dan database PostgreSQL anjlok hingga 97%.
+  - Latensi checkout sisi klien (*initial interaction latency*) terpangkas drastis dari 650ms menjadi hanya 28ms.
+  - Seluruh toko online merchant dapat melayani transaksi pembayaran berbasis cookie dengan aman tanpa melanggar kepatuhan Same-Origin Policy browser.
 
 ## 10. Jebakan Umum di Lingkungan Produksi (Gotchas)
 
@@ -171,4 +184,7 @@ func CORSMiddleware(next http.Handler) http.Handler {
 
 ## 11. Rangkuman Singkat
 
-CORS adalah kebijakan keamanan browser web yang mengatur pembagian sumber daya lintas domain. Pada arsitektur backend berkecepatan tinggi, kuncinya adalah menerapkan whitelist origin dinamis, merespon preflight `OPTIONS` secara instan dengan status 204 No Content, dan memaksimalkan *preflight caching* (`Access-Control-Max-Age`) untuk memangkas separuh lalu lintas jaringan yang sia-sia.
+1. **Proteksi Sisi Browser**: CORS adalah mekanisme keamanan browser web untuk mencegah situs jahat menyalahgunakan hak akses pengguna, bukan pengganti autentikasi server.
+2. **Hindari Wildcard untuk Kredensial**: Jangan gabungkan `Access-Control-Allow-Origin: *` dengan `Allow-Credentials: true`; pantulkan origin yang valid dari whitelist dinamis.
+3. **Wajib Pasang Preflight Caching**: Sertakan header `Access-Control-Max-Age` (misal 24 jam) untuk menghentikan pemborosan jaringan akibat request OPTIONS ganda.
+4. **Selesaikan di Edge Proxy**: Terminasi preflight OPTIONS langsung di layer API Gateway atau reverse proxy dengan respons `204 No Content` tanpa membebani container aplikasi.

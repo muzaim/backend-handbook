@@ -137,8 +137,11 @@ Metrik untuk memantau performa instance Grafana itu sendiri:
 
 ## 9. Studi Kasus Nyata di Industri
 
--   **CERN (Organisasi Riset Nuklir Eropa)**: Menggunakan Grafana untuk memonitor ribuan sensor komputer dan akselerator partikel _Large Hadron Collider (LHC)_, memvisualisasikan jutaan metrik kontrol secara real-time.
--   **Uber Microservices Observability**: Uber mengintegrasikan Grafana dengan mesin metrik skala besar mereka (M3DB) untuk memvisualisasikan kesehatan ratusan ribu container backend dan armada pengemudi global.
+### Unifikasi Visualisasi Observabilitas (Metrik, Log, & Traces) pada Dashboard Incident Response
+
+- **Tantangan Rekayasa Riil (The Problem)**: Sebuah institusi e-commerce multinasional mengalami fragmentasi observabilitas yang parah saat insiden outages: tim infrastruktur melihat metrik di Prometheus, tim backend mengecek log teks manual di server via SSH atau Kibana terpisah, dan tim reliabilitas melacak jejak di Jaeger. Ketika sistem checkout melambat saat flash sale, para on-call engineer membutuhkan waktu 45 menit hanya untuk menghubungkan ID pesanan yang gagal dengan pod server yang bermasalah karena harus berganti-ganti 4 tool antarmuka yang berbeda (_context-switching fatigue_).
+- **Implementasi Solusi Industri (The Architectural Solution)**: Tim membangun *Single Pane of Glass* observabilitas terpadu menggunakan *Grafana Enterprise*. Tiga pilar observabilitas diintegrasikan dalam satu dashboard insiden: panel visualisasi metrik latensi PromQL (Prometheus), panel penelusuran log real-time berbasis LogQL (Grafana Loki), dan visualisasi alur stack trace terdistribusi (Grafana Tempo). Fitur *Data Links* dikonfigurasi sehingga engineer yang mengklik lonjakan p99 di grafik metrik dapat langsung melompat ke trace ID yang relevan di Tempo, lalu melihat baris log tepat saat transaksi error terjadi di Loki hanya dengan 1 klik. Dashboard distandarisasi sebagai kode (*Dashboard-as-Code*) menggunakan Terraform.
+- **Dampak & Hasil Sistem (The Outcome)**: Mean Time to Resolve (MTTR) saat insiden produksi terpangkas drastis dari 45 menit menjadi rata-rata 4 menit. Beban kognitif on-call engineer berkurang secara signifikan karena seluruh korelasi data telemetri tersaji dalam satu layar terpadu, dan utilisasi resource datasource monitoring hemat 30% berkat fitur Query Caching di Grafana.
 
 ## 10. Fakta Menarik & Gotchas Production
 
@@ -147,3 +150,10 @@ Metrik untuk memantau performa instance Grafana itu sendiri:
     _Aturan Wajib:_ Batasi auto-refresh dashboard di lingkungan produksi minimal **`30s`** atau **`1m`**.
 -   **Panel Query Caching (Menyelamatkan TSDB)**:  
     Di Grafana modern, aktifkan fitur **Query Caching** pada datasource. Jika ada 10 engineer yang membuka dashboard incident response yang sama secara bersamaan, Grafana hanya akan mengeksekusi 1 query ke Prometheus dan menyajikan hasilnya dari cache memori ke 9 engineer lainnya.
+
+## 11. Rangkuman Singkat
+
+- **Single Pane of Glass Terpadu**: Grafana menyatukan berbagai sumber data (Prometheus, Loki, Tempo, PostgreSQL, Elasticsearch) ke dalam satu antarmuka visualisasi yang interaktif dan fleksibel.
+- **Korelasikan Metrik ke Log dan Traces**: Manfaatkan fitur Data Links di Grafana untuk melompat dari lonjakan grafik metrik langsung ke baris log yang error dan distributed trace ID terkait dalam satu klik.
+- **Waspadai Interval Auto-Refresh TV**: Jangan setel auto-refresh panel ke angka ekstrem (1-5 detik) pada monitor display kantor; tetapkan batas aman minimal 30-60 detik untuk mencegah DoS terhadap datasource monitoring.
+- **Terapkan Dashboard as Code**: Kelola definisi dashboard menggunakan format JSON atau generator kode (Terraform/Grafonnet) di repositori Git agar perubahan visualisasi dapat direview dan dilacak versinya.

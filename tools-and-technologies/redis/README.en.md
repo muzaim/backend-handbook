@@ -154,8 +154,11 @@ Essential telemetry for production Redis monitoring on Grafana / Datadog:
 
 ## 9. Real-World Case Studies
 
-- **Twitter / X Home Timeline**: Twitter deploys large-scale Redis Clusters holding active user home timelines in Redis List structures. When a user opens the mobile app, their timeline is assembled directly from memory within milliseconds.
-- **GitHub API Rate Limiting**: GitHub manages public and authenticated API request quotas (e.g., 5,000 requests/hour) using Redis. Combining atomic increments and TTL expirations, quota enforcement occurs with negligible compute overhead.
+### High-Throughput Token Session In-Memory Caching and Atomic Sliding Window Rate Limiting
+
+- **The Engineering Problem**: A financial services portal experienced an authentication surge of 60,000 requests per second during peak market hours. Originally, every OAuth bearer token verification and session lookup executed a synchronous SQL query against PostgreSQL. Database connection pools saturated (5,000 max connections exhausted), disk I/O hit 100%, and authorization p99 latency surged from 15 ms to 3,800 ms. Concurrently, distributed brute-force credential stuffing attacks evaded detection because logging failed attempts to disk was too slow to throttle attackers in real time.
+- **The Architectural Solution**: The infrastructure team introduced a distributed Redis Cluster as the low-latency session and security throttling tier. User session payloads and token states were cached with explicit 24-hour TTLs. Rate limiting was upgraded to an atomic *Sliding Window Log* implemented via Redis Sorted Sets (`ZADD`, `ZREMRANGEBYSCORE`, and `ZCARD`) evaluated inside transactional Lua scripts. The cluster enforced a `volatile-lru` memory eviction policy with strict `maxmemory` reservations to avoid Linux OOM terminations.
+- **The System Outcome**: Authorization verification p99 latency plummeted from 3,800 ms to 1.2 ms. Over 98.5% of authentication query pressure was offloaded from PostgreSQL, reducing relational database CPU usage from 95% to 18%. Credential stuffing attempts were throttled at the ingress layer in sub-milliseconds without taxing transactional storage.
 
 ## 10. Interesting Facts & Production Gotchas
 
@@ -165,3 +168,10 @@ Essential telemetry for production Redis monitoring on Grafana / Datadog:
 - **The Memory Eviction Policy Trap**:  
   By default, if Redis reaches its configured `maxmemory` ceiling, it rejects write commands with fatal `OOM command not allowed` exceptions.  
   *Production Fix:* Explicitly configure an eviction policy in `redis.conf`, such as **`allkeys-lru`** (evict least recently used keys across the entire dataset) or **`volatile-lru`** (evict only keys configured with an expiration TTL).
+
+## 11. Key Takeaways
+
+- **Sub-Millisecond In-Memory Throughput**: Redis stores data in RAM and operates on a non-blocking single-threaded event loop, processing hundreds of thousands of operations per second with microsecond latencies.
+- **Leverage Native Rich Data Structures**: Utilize Redis beyond key-value strings: Hashes for domain models, Sets for deduplication, Sorted Sets for leaderboards and rate limiting, and Streams for lightweight messaging.
+- **Ban O(N) Commands in Production**: Never issue `KEYS *` or `FLUSHALL` on production clusters, as long-running $O(N)$ operations freeze the single thread and cause cascade timeouts; always use cursor-driven `SCAN`.
+- **Set Explicit Eviction Policies**: Bound Redis memory with `maxmemory` and select appropriate eviction strategies (`allkeys-lru` or `volatile-lru`) to prevent runtime crashes when memory reaches capacity.

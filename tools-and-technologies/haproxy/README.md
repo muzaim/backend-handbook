@@ -178,8 +178,11 @@ func HealthCheckHandler(db *sql.DB) http.HandlerFunc {
 
 ## 9. Studi Kasus Industri Nyata
 
--   **GitHub**: Mengandalkan HAProxy di layer terluar data center mereka untuk melakukan load balancing jutaan operasi Git over SSH, Git over HTTPS, dan web traffic ke ratusan server backend.
--   **Stack Overflow**: Melayani miliaran request halaman web per bulan menggunakan sepasang server HAProxy bare-metal aktif-pasif yang mengonsumsi kurang dari 10% CPU di jam-jam tersibuk.
+### Penyeimbangan Beban 300.000 Koneksi TCP Persisten dan Failover PostgreSQL Sub-Detik
+
+- **Tantangan Rekayasa Riil (The Problem)**: Sebuah platform transaksi keuangan dan gaming real-time mengelola armada ribuan koneksi WebSocket persisten dan cluster database PostgreSQL berukuran besar (1 Primary dan 4 Read Replicas). Awalnya, load balancer cloud berbasis DNS digunakan untuk mengarahkan trafik database dan websocket. Ketika node primary database mengalami hardware failure, propagasi DNS membutuhkan waktu hingga 60 detik, menyebabkan ribuan aplikasi terus mengirim query transaksi write ke node yang mati (menghasilkan ribuan pesan error `500 Server Error`). Selain itu, load balancer cloud sering memutus koneksi WebSocket klien secara acak tanpa peringatan karena keterbatasan penanganan konkurensi koneksi persisten.
+- **Implementasi Solusi Industri (The Architectural Solution)**: Tim menempatkan sepasang server *HAProxy* aktif-pasif (dikelola via Keepalived VRRP) di lapisan load balancing Layer 4 dan Layer 7. Untuk cluster database, HAProxy dikonfigurasi dalam mode TCP stream dengan algoritma `roundrobin` dan pemeriksaan kesehatan berkala via *HTTP health check probe* (`http-check expect status 200` ke agent Patroni). Begitu Patroni mempromosikan replica baru saat primary mati, HAProxy mendeteksi perubahan status dalam waktu 500 ms dan secara otonom membelokkan trafik penulisan ke primary baru tanpa campur tangan DNS. Untuk WebSocket, HAProxy menyetel `timeout tunnel 3600s` dan mengalokasikan `maxconn 150000` dengan kernel socket tuning.
+- **Dampak & Hasil Sistem (The Outcome)**: Waktu pemulihan failover database otomatis (RTO) terpangkas dari 60 detik menjadi < 1 detik dengan *zero data write loss*. Armada HAProxy menangani 300.000 koneksi persisten bersamaan secara stabil dengan utilisasi CPU di bawah 12% dan konsumsi RAM yang stabil. Insiden putusnya koneksi WebSocket turun hingga 99,9%, memberikan pengalaman streaming dan transaksi tanpa interupsi bagi pengguna.
 
 ## 10. Jebakan Umum di Lingkungan Produksi (Gotchas)
 
@@ -192,4 +195,7 @@ func HealthCheckHandler(db *sql.DB) http.HandlerFunc {
 
 ## 11. Rangkuman Singkat
 
-HAProxy adalah perangkat lunak load balancer Layer 4 dan Layer 7 berkecepatan ekstrem yang terkenal dengan efisiensi memori, ketahanan terhadap beban jutaan koneksi konkuren, dan kemampuan health-check yang presisi. HAProxy adalah pilihan utama untuk layer perutean lalu lintas mission-critical di depan armada microservices berkecepatan tinggi.
+- **Spesialis Load Balancing L4 & L7 Berperforma Tinggi**: HAProxy dirancang khusus untuk mem-proxy dan menyeimbangkan beban trafik jaringan (TCP, HTTP, gRPC, WebSocket) dengan latensi sub-milidetik dan throughput luar biasa.
+- **Pemeriksaan Kesehatan Tingkat Lanjut**: HAProxy menyediakan health check aktif berlapis (TCP handshake, HTTP response status, hingga regex response payload) untuk mendeteksi node rusak secara instan.
+- **Dukungan Seamless Reload**: Gunakan flag `-x` saat reload konfigurasi produksi agar proses baru mewarisi listen socket proses lama tanpa memutus ribuan koneksi persisten yang sedang aktif.
+- **Bukan Web Server Statis**: HAProxy tidak melayani file disk statis (HTML/gambar); kombinasikan HAProxy dengan NGINX atau CDN untuk kebutuhan penyajian aset statis.

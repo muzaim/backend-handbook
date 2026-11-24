@@ -162,12 +162,31 @@ func (lb *RoundRobinLoadBalancer) GetNextServer() (*ServerNode, error) {
 -   **`request_distribution_per_target` (Counter)**: Memastikan grafik trafik terbagi rata; jika satu server menerima 80% trafik, ada bug pada algoritma load balancing atau sticky session.
 -   **`surge_queue_length` (Gauge)**: Jumlah request yang antre di buffer load balancer saat seluruh server backend sedang 100% sibuk.
 
-## 9. Studi Kasus Nyata di Industri
+## 9. Studi Kasus Industri Nyata
 
--   **Google (Maglev)**: Google mendesain software load balancer terdistribusi bernama **Maglev** yang berjalan di atas server komoditas Linux biasa. Maglev menangani seluruh lalu lintas Google Search dan YouTube menggunakan teknik _Consistent Hashing_ khusus yang sanggup menyerap jutaan paket data per detik tanpa merusak koneksi TCP pengguna meski ada node Maglev yang di-restart.
--   **GitHub**: Berhasil bermigrasi ke load balancing berbasis **GLB (GitHub Load Balancer)** yang beroperasi di Layer 4 menggunakan teknologi kernel Linux eBPF/XDP. GLB memungkinkan scaling horizontal tanpa terputusnya koneksi TCP yang sedang aktif (_resilient connection draining_).
+### Penanganan Hotspot Node & Zero-Downtime Deployment di Sistem Pembayaran
+
+- **Tantangan Rekayasa Riil (The Problem)**:
+  Sebuah platform payment gateway menggunakan algoritma standar Round-Robin pada layer proxy untuk mendistribusikan trafik ke 20 instance worker. Masalah muncul karena variasi durasi transaksi sangat heterogen: request cek saldo selesai dalam 5ms, sedangkan request rekonsiliasi pembayaran kartu memakan waktu 1.500ms. Algoritma Round-Robin terus menembakkan request baru secara buta ke server yang kebetulan sedang memproses banyak transaksi berat. Tiga node server mengalami *thread pool starvation*, CPU mencapai 100%, dan request pengguna lain yang mendarat di node tersebut mendadak terkena timeout (HTTP 504).
+
+- **Implementasi Solusi Industri (The Architectural Solution)**:
+  1. **Transisi ke Dynamic Least Connections (Peak-EWMA)**: Load balancer dikonfigurasi ulang menggunakan algoritma *Peak Exponentially Weighted Moving Average* (Peak-EWMA), yang memprioritaskan server dengan jumlah koneksi aktif paling sedikit dan latensi historis paling rendah.
+  2. **Intelligent Deep Health Checking**: Endpoint `/healthz` di setiap node Go dimodifikasi agar tidak hanya mengembalikan status `200 OK`, melainkan memeriksa utilisasi goroutine aktif dan koneksi database pool. Jika goroutine aktif melampaui batas aman (misal > 5.000), node secara proaktif melaporkan status *degraded* sehingga load balancer berhenti mengirimkan beban baru untuk sementara.
+  3. **Graceful Connection Draining**: Saat proses rolling update deployment di Kubernetes, ingress load balancer memberikan toleransi `deregistration_delay` selama 30 detik agar koneksi transaksi yang sedang berlangsung diselesaikan secara tuntas sebelum pod lama dimatikan.
+
+- **Dampak & Hasil Sistem (The Engineering Outcome)**:
+  - Lonjakan HTTP 504 Gateway Timeout tereliminasi hingga 0%.
+  - Distribusi latensi p99 seluruh sistem menurun sebesar 62% karena tidak ada lagi server yang mengalami penumpukan antrean (*hotspot nodes*).
+  - Tim engineering dapat melakukan deployment kode baru ke produksi 20 kali sehari tanpa pernah memutus transaksi pembayaran pengguna.
 
 ## 10. Fakta Menarik & Gotchas Production
 
 -   **Health Check Flapping**: Jika konfigurasi health check terlalu agresif (misal: timeout 100ms dan gagal 2 kali langsung dicap mati), saat server sedang sibuk mengerjakan GC (Garbage Collection), load balancer akan menganggap server mati. Beban akan dialihkan ke server yang tersisa, membuat server lainnya ikut kolaps secara berantai (_cascading failure_).
 -   **DNS Round Robin Bukan Load Balancer Sejati**: Banyak yang mengira memasukkan beberapa IP address di record DNS (A Record) sudah cukup sebagai load balancing. Padahal, DNS tidak tahu apakah server target sedang hidup atau mati, dan client sering meng-cache IP lama selama berjam-jam.
+
+## 11. Rangkuman Singkat
+
+1. **Pemerata Beban & Pencegah Hotspot**: Mendistribusikan request secara adil agar kapasitas seluruh armada server termanfaatkan maksimal tanpa ada satu server yang tumbang sendirian.
+2. **Pilih Algoritma Sesuai Karakteristik**: Gunakan *Least Connections* atau *Peak-EWMA* untuk beban kerja heterogen; hindari Round-Robin statis jika ada transaksi yang memakan waktu lama.
+3. **Health Check Adaptif**: Pastikan health check mencerminkan kesehatan riil dependensi sistem tanpa terlalu sensitif hingga memicu *flapping domino failure*.
+4. **Connection Draining Adalah Kunci**: Berikan jendela waktu pengeringan koneksi saat deployment agar transaksi pengguna yang sedang berjalan tidak terputus di tengah jalan.

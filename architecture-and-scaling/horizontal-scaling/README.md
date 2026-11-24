@@ -170,10 +170,23 @@ func OrderHandler(w http.ResponseWriter, r *http.Request) {
 
 ## 9. Studi Kasus Industri Nyata
 
--   **Netflix**: Mengoperasikan puluhan ribu instance microservices di AWS EC2. Seluruh sistem backend didesain _stateless_ sehingga ribuan instance dapat dimatikan, dipindahkan antar-region, atau dibuat ulang dalam hitungan menit tanpa mengganggu jutaan penonton yang sedang streaming.
--   **Uber**: Selama perayaan malam Tahun Baru, jumlah pesanan perjalanan melonjak puluhan kali lipat. Infrastruktur orkestrasi internal Uber secara otomatis melakukan scale-out ribuan container komputasi untuk menangani geolokasi dan kalkulasi rute secara real-time.
+### Penanganan Lonjakan Flash Sale E-Commerce Nasional
 
-## 10. Jebakan Umum di Lingkungan Produksi (Gotchas)
+- **Tantangan Rekayasa Riil (The Problem)**:
+  Sebuah platform e-commerce awalnya menjalankan aplikasi monolitik pada mesin server besar (32 Core, 128 GB RAM). Saat kampanye belanja kilat (*flash sale*), trafik melonjak mendadak dari 3.000 RPS menjadi 65.000 RPS dalam 45 detik. CPU server menyentuh 100%, soket TCP lokal kehabisan ephemeral ports (*socket exhaustion*), dan memori mengalami thrashing. Ketika server mendadak reboot karena kernel panic, seluruh sesi checkout jutaan pengguna terhapus (*Single Point of Failure*).
+
+- **Implementasi Solusi Industri (The Architectural Solution)**:
+  1. **Stateless Refactoring**: Logika otentikasi dan keranjang belanja dipisahkan dari memori lokal server Go dan dipindahkan ke Redis Cluster terdistribusi.
+  2. **Containerized Ingress**: Backend dipecah menjadi unit container Go ringan (0.5 Core, 512 MB RAM) di Kubernetes cluster di balik AWS Application Load Balancer.
+  3. **Predictive & Metric-Based HPA**: Kubernetes Horizontal Pod Autoscaler dikonfigurasi untuk memonitor metrik *request rate per pod* (target: 400 RPS/pod) dan CPU utilization (>65%), dengan *readiness probe* presisi agar pod baru hanya menerima trafik setelah koneksi pool siap.
+  4. **Connection Pooling Guard**: PgBouncer dipasang di depan database PostgreSQL cluster untuk membatasi koneksi riil dari ratusan pod horizontal.
+
+- **Dampak & Hasil Sistem (The Engineering Outcome)**:
+  - Armada pod secara otomatis mengembang elastis dari 12 pod menjadi 160 pod dalam rentang 75 detik saat flash sale berlangsung.
+  - Error rate request HTTP 5xx turun dari 24.8% ke 0.001%.
+  - Seluruh pengguna dapat berpindah antar-instance tanpa pernah ter-logout mendadak karena status sesi tersimpan independen di Redis.
+
+## 10. Fakta Menarik & Gotchas Production
 
 1. **Jebakan In-Memory State**: Developer pemula sering menyimpan data autentikasi atau cache di variabel global memory Go. Saat instance di-scale menjadi 5 node, pengguna mendadak logout saat request kedua diarahkan load balancer ke instance lain yang tidak memiliki data session tersebut.
 2. **Kelelahan Database Connection (_Connection Exhaustion_)**: Saat HPA menaikkan pod dari 10 menjadi 100 instance, database PostgreSQL langsung kolaps karena menerima lonjakan koneksi baru secara masif. _Solusi_: Pasang dedicated database connection pooler seperti **PgBouncer** di depan database.
@@ -181,4 +194,7 @@ func OrderHandler(w http.ResponseWriter, r *http.Request) {
 
 ## 11. Rangkuman Singkat
 
-Horizontal Scaling adalah strategi menambah jumlah node server stateless secara elastis untuk mendistribusikan beban kerja secara paralel. Pola ini adalah pilar utama backend modern berkemampuan tinggi yang menjamin ketersediaan tinggi, elastisitas biaya, dan ketahanan sistem tanpa terbatasi batas fisik perangkat keras tunggal.
+1. **Stateless is Mandatory**: Server horizontal tidak boleh menyimpan *state* lokal; semua session dan data sementara wajib didelegasikan ke Redis atau database.
+2. **Elastisitas Biaya**: Kapasitas server bertambah otomatis saat jam sibuk dan menyusut saat trafik landai, memangkas biaya infrastruktur cloud secara signifikan.
+3. **Waspadai Downstream Saturation**: Setiap pod horizontal baru membawa koneksi database sendiri; gunakan perantara connection pooler seperti PgBouncer agar database upstream tidak kolaps.
+4. **Resiliensi Tinggi**: Kematian salah satu mesin atau container fisik tidak berdampak fatal terhadap ketersediaan sistem karena beban dialihkan secara instan oleh Load Balancer.

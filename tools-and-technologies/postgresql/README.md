@@ -146,8 +146,11 @@ Metrik wajib di Grafana / Datadog untuk PostgreSQL:
 
 ## 9. Studi Kasus Nyata di Industri
 
--   **Stripe Financial Infrastructure**: Stripe mengandalkan PostgreSQL sebagai sumber kebenaran data (_source of truth_) untuk memproses ratusan miliar dolar volume pembayaran global per tahun, memanfaatkan transaksi ACID ketat dan replikasi multi-region terisolasi.
--   **Instagram Early Architecture**: Instagram membangun seluruh sistem backend awalnya di atas kluster PostgreSQL yang di-shard secara horizontal berdasarkan `user_id` untuk menangani ratusan juta foto dan interaksi sosial.
+### Penyelamatan Latensi dan Integritas Transaksional ACID pada Skala Finansial Multi-Juta Baris
+
+- **Tantangan Rekayasa Riil (The Problem)**: Sebuah institusi perbankan digital mengelola basis data transaksional utama yang bertumbuh hingga 450 juta baris pada tabel ledger mutasi rekening. Tanpa pemeliharaan berkala, autovacuum default gagal mengimbangi laju penulisan (50.000 transaksi/menit), mengakibatkan *table bloat* masif dengan dead tuples mencapai 40% dari total ukuran tabel di disk (250 GB terbuang). Akibatnya, query rekonsiliasi harian dan penarikan saldo melambat dari 40 ms menjadi 18 detik, disk I/O menyentuh 100%, dan transaksi nasabah mulai mengalami timeout kunci baris (*lock wait timeout*).
+- **Implementasi Solusi Industri (The Architectural Solution)**: Database direkayasa ulang dengan menerapkan strategi *Declarative Range Partitioning* berdasarkan kolom `created_at` (partisi bulanan) sehingga proses query dan vacuum hanya menyasar partisi aktif. Parameter worker autovacuum di-tuning (`autovacuum_vacuum_cost_limit = 2000`, `autovacuum_max_workers = 6`) agar pembersihan dead tuple berjalan agresif tanpa membebani disk IOPS. Diterapkan read replica terdistribusi via streaming replication asinkron untuk mengalihkan query laporan analitik berat, serta indeks parsial B-Tree pada kolom status transaksi aktif (`WHERE status = 'PENDING'`).
+- **Dampak & Hasil Sistem (The Outcome)**: Latensi query pembaruan saldo p99 terpangkas dari 18.000 ms menjadi 8 ms. Ukuran disk yang dikonsumsi berkurang drastis berkat eliminasi table bloat, dan waktu eksekusi batch rekonsiliasi harian turun dari 3,5 jam menjadi hanya 12 menit. Pemisahan beban analitik ke read replica menjaga utilisasi CPU pada primary node tetap stabil di bawah 30% dengan integritas transaksi ACID 100% terjaga.
 
 ## 10. Fakta Menarik & Gotchas Production
 
@@ -157,3 +160,10 @@ Metrik wajib di Grafana / Datadog untuk PostgreSQL:
 -   **The Transaction ID Wraparound Disaster**:  
     PostgreSQL menggunakan integer 32-bit untuk nomor identitas transaksi (`xmin`). Angka ini memiliki batas maksimal sekitar 4 miliar transaksi (`2^32`). Jika sebuah database aktif sangat sibuk dan proses vacuum tidak pernah membersihkan counter transaksi lama, Postgres akan mencapai batas _wraparound_ dan **secara paksa mengunci database ke mode READ-ONLY** untuk mencegah rusaknya data masa lalu!  
     _Solusi Wajib:_ Pastikan daemon `autovacuum` berjalan sehat dan pantau metrik `datfrozenxid` di monitoring.
+
+## 11. Rangkuman Singkat
+
+- **Integritas ACID Tingkat Perusahaan**: PostgreSQL adalah database relasional open-source tercanggih yang menawarkan kepatuhan ACID penuh, tipe data ekstensif (JSONB, Arrays), dan ekstensibilitas tak tertandingi.
+- **Wajib Pasang Connection Pooler (PgBouncer)**: Postgres menggunakan model *one process per connection* yang memakan 5-10 MB RAM per koneksi; pasang PgBouncer dengan mode transaction pooling untuk melayani ribuan koneksi aplikasi dengan puluhan koneksi fisik.
+- **Rawat Dead Tuples dan Autovacuum**: Fitur MVCC Postgres membuat row baru saat UPDATE/DELETE dieksekusi; pastikan worker `autovacuum` dikonfigurasi optimal agar disk tidak membengkak oleh tumpukan dead tuples (*table bloat*).
+- **Skalakan Pembacaan dengan Read Replica**: Gunakan streaming replication untuk menyalurkan query laporan/analitik baca (`SELECT`) ke instance replica terpisah agar core primary node fokus melayani transaksi penulisan atomik.

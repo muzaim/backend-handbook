@@ -195,8 +195,11 @@ func processWebhookAsync(evt WebhookPayload) {
 
 ## 9. Studi Kasus Industri Nyata
 
--   **Stripe**: Mengirimkan miliaran notifikasi webhook pembayaran setiap hari ke jutaan developer di seluruh dunia. Stripe merancang infrastruktur webhook tangguh yang otomatis mencoba ulang (_exponential backoff retry_) hingga 72 jam jika server pelanggan mengalami kegagalan, dilengkapi dashboard monitoring interaktif di mana developer dapat memeriksa log payload dan melakukan _replay event_ manual.
--   **GitHub**: Menjadi tulang punggung integrasi DevOps global. Setiap kali ada commit atau Pull Request yang di-push ke repository, GitHub Webhooks menembakkan event ke sistem CI/CD (seperti Jenkins, CircleCI, atau GitHub Actions runner) untuk memicu proses build dan testing otomatis.
+### Penanganan Ledakan Notifikasi Pembayaran Payment Gateway dan Pencegahan Replay Attack
+
+- **Tantangan Rekayasa Riil (The Problem)**: Sebuah platform e-commerce menerima ratusan ribu webhook notifikasi status pembayaran dari payment gateway eksternal saat flash sale. Handler webhook awalnya menjalankan logika bisnis berat secara sinkron: memvalidasi status, mengunci row database order, mengurangi stok inventaris, dan memanggil API invoice eksternal sebelum membalas respons HTTP. Ketika latensi pemanggilan API eksternal melonjak, handler melebihi batas timeout 5 detik dari gateway. Akibatnya, payment gateway menganggap request gagal dan mengirimkan ribuan webhook retry secara beruntun (*retry storm*), menyebabkan *database lock contention* parah dan ribuan akun terisi saldo berulang kali (*duplicate crediting*).
+- **Implementasi Solusi Industri (The Architectural Solution)**: Handler webhook ditulis ulang menjadi arsitektur asinkron non-blocking: begitu request masuk, sistem memvalidasi tanda tangan HMAC-SHA256 dan timestamp toleransi (maksimal selisih 5 menit untuk menangkal *replay attack*), memverifikasi keunikan `event_id` pada tabel idempotensi Redis dengan atomic `SET NX EX`, lalu langsung mengembalikan `HTTP 200 OK` dalam tempo < 50 ms. Payload event di-enqueue ke antrean pekerja latar belakang (RabbitMQ/SQS) untuk dieksekusi secara terisolasi dengan mekanisme dead-letter queue (DLQ).
+- **Dampak & Hasil Sistem (The Outcome)**: Latensi balasan HTTP webhook terpangkas dari rata-rata 4.200 ms menjadi 28 ms, menghentikan false timeout dan retry storm dari pihak gateway. Tingkat duplikasi saldo atau eksekusi ganda order ditekan menjadi tepat 0% berkat guard idempotensi atomik. Sistem mampu menyerap lonjakan 15.000 webhook/detik tanpa membebani database utama.
 
 ## 10. Jebakan Umum di Lingkungan Produksi (Gotchas)
 
@@ -207,4 +210,7 @@ func processWebhookAsync(evt WebhookPayload) {
 
 ## 11. Rangkuman Singkat
 
-Webhook adalah mekanisme notifikasi asinkron berbasis HTTP POST proaktif (_Reverse API_) yang menggantikan polling boros. Untuk skala produksi, webhook menuntut verifikasi tanda tangan kriptografis (HMAC), respon HTTP 200 OK secepat kilat melalui pemrosesan background, serta penanganan idempotensi mutlak terhadap duplikasi event.
+- **Balas HTTP 200 OK Secepat Mungkin**: Jangan jalankan logika berat atau query database lambat di handler webhook; validasi tanda tangan, antrekan payload ke task queue/broker, dan langsung kembalikan respon 200 OK dalam waktu < 200 ms.
+- **Wajib Validasi Tanda Tangan Kriptografis**: Lindungi endpoint publik dari penyerang dengan memverifikasi header HMAC-SHA256 menggunakan shared secret yang aman.
+- **Terapkan Pencegahan Replay Attack**: Sertakan dan periksa header timestamp; tolak setiap payload webhook yang waktu pembuatannya berselisih lebih dari 5 menit dari jam server lokal.
+- **Jamin Idempotensi Mutlak di Konsumen**: Gateway pengirim webhook menerapkan retry agresif jika terjadi gangguan jaringan; simpan dan cek `event_id` unik pada penyimpanan persisten untuk mencegah duplikasi pemrosesan bisnis.

@@ -130,11 +130,21 @@ Untuk memonitor kesehatan dan utilisasi container pada cAdvisor, Prometheus, ata
 
 ## 9. Studi Kasus Nyata di Industri
 
--   **Migrasi Infrastruktur Spotify ke Kontainer**: Spotify memindahkan ribuan microservices backend mereka dari pengelolaan server virtual VM statis ke kontainer Docker yang diorkestrasi di cloud. Langkah ini memangkas waktu booting service dari 15 menit menjadi kurang dari 10 detik dan menghemat jutaan dolar biaya sewa VM.
--   **Uber Global Microservice Fleet**: Uber mengelola lebih dari 4.000 microservices terpisah yang seluruhnya dikemas dalam Docker containers. Standardisasi ini memungkinkan ribuan insinyur Uber mendeploy kode ke ribuan host bare-metal secara konsisten setiap hari.
+### Standardisasi Lingkungan Rilis dan Eliminasi Sindrom "It Works on My Machine"
+
+- **Tantangan Rekayasa Riil (The Problem)**: Sebuah perusahaan teknologi finansial mengelola ratusan engineer yang bekerja di OS beragam (macOS M-Series, Windows WSL, Ubuntu). Sebelum mengadopsi kontainerisasi Docker, deployment aplikasi bergantung pada script shell manual dan konfigurasi shared VM yang rapuh. Perbedaan minor versi pustaka C runtime (glibc vs musl) dan versi interpreter Python antar mesin menyebabkan seringnya insiden *"It works on my local machine but breaks in production"*. Waktu onboarding developer baru membutuhkan 3-4 hari hanya untuk men-setup dependencies lokal, dan proses deployment VM memakan waktu 25 menit per rilis dengan tingkat kegagalan deployment mencapai 18%.
+- **Implementasi Solusi Industri (The Architectural Solution)**: Tim menstandardisasi seluruh lifecycle aplikasi menggunakan Docker dengan Multi-Stage Build. Dependency, OS base image (Alpine/Distroless), dan runtime binary dibundel ke dalam image yang immutable dan terversi secara identik. Lingkungan pengujian lokal disimulasikan menggunakan `docker compose` yang mereplikasi database PostgreSQL, Redis cache, dan mock payment service. Pipeline CI membangun image terverifikasi, memindai celah keamanan dengan Trivy, dan mem-push image ke private container registry (ECR) untuk dideploy langsung ke staging dan produksi tanpa modifikasi biner.
+- **Dampak & Hasil Sistem (The Outcome)**: Masalah ketidakcocokan environment (parity bug) antara mesin lokal dan server produksi turun menjadi 0%. Waktu setup environment engineer baru terpangkas dari 4 hari menjadi hanya 1 perintah (`docker compose up`) dalam waktu 5 menit. Durasi rilis deployment berkurang dari 25 menit menjadi 45 detik, sementara tingkat kegagalan deployment anjlok dari 18% ke bawah 0,5%.
 
 ## 10. Fakta Menarik & Gotchas Production
 
 -   **The Root User Security Hazard**: Secara default, jika kamu tidak menulis instruksi `USER` di Dockerfile, aplikasi di dalam kontainer akan berjalan sebagai **`root`**. Jika aplikasi webmu memiliki celah _Remote Code Execution_, penyerang mendapatkan akses root di server host! Selalu buat user non-root khusus (misal: `USER appuser`).
 -   **Bloated Image Size vs Multi-Stage Build**: Developer junior sering membuat Docker image berukuran 2 GB karena memasukkan compiler Go/Rust, source code, dan git history ke image final production. Terapkan **Multi-Stage Build**: gunakan container pertama untuk kompilasi kode, lalu salin hanya file biner murni hasil kompilasi ke base image minimal seperti `alpine` atau `distroless` (ukuran image menyusut drastis dari 2.000 MB menjadi 25 MB!).
 -   **Handling Sinyal SIGTERM**: Saat Docker menghentikan kontainer (`docker stop`), ia mengirim sinyal `SIGTERM` dan memberi waktu toleransi 10 detik sebelum mengirim `SIGKILL`. Jika aplikasimu tidak mendengarkan sinyal `SIGTERM`, servermu akan memutus koneksi transaksi database pengguna secara kasar (_abrupt drop_). Selalu tangani _Graceful Shutdown_ di kodemu!
+
+## 11. Rangkuman Singkat
+
+- **Konsistensi Lingkungan Mutlak**: Docker membungkus aplikasi beserta seluruh dependensi dan runtime OS-nya ke dalam container image yang immutable, menjamin perilaku identik dari laptop developer hingga server produksi.
+- **Multi-Stage Build untuk Efisiensi**: Pisahkan tahap kompilasi kode dari image produksi final; salin hanya file biner hasil build ke image minimal (distroless/alpine) untuk memangkas ukuran image dari gigabytes menjadi puluhan megabytes.
+- **Jalankan Non-Root untuk Keamanan**: Jangan pernah menjalankan aplikasi container sebagai user `root`; selalu definisikan user unprivileged (`USER appuser`) untuk mempersempit dampak eksploitasi keamanan host.
+- **Tangani Sinyal SIGTERM**: Pastikan aplikasi menangkap sinyal `SIGTERM` untuk melakukan graceful shutdown (menuntaskan request aktif dan menutup koneksi database) sebelum batas toleransi timeout tercapai.

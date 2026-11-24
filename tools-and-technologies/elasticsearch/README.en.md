@@ -180,8 +180,11 @@ func SearchProducts(ctx context.Context, es *elasticsearch.Client, keyword strin
 
 ## 9. Real-World Case Studies
 
-- **Wikipedia**: Powers instantaneous multi-language full-text search across hundreds of millions of global encyclopedia articles using large-scale Elasticsearch clusters.
-- **GitHub**: Deploys multi-terabyte Elasticsearch clusters to index billions of lines of source code across millions of public and private repositories for instant code symbol navigation.
+### Powering Full-Text Search Across an 80-Million SKU Catalog via Inverted Indexes and CDC
+
+- **The Engineering Problem**: An e-commerce marketplace scaled its inventory to 80 million product SKUs. Originally, user catalog search and multifaceted filters relied on relational SQL queries (`SELECT ... WHERE title ILIKE '%running shoes%'`). Pattern-matching queries forced unindexed disk scans across relational tables, pinning database CPU at 100% during shopping peaks. Query latency degraded to over 14 seconds, triggering browser gateway timeouts and substantial sales conversion abandonment.
+- **The Architectural Solution**: The engineering team segregated search indexing into a dedicated multi-node *Elasticsearch* cluster. A Change Data Capture (CDC) pipeline using Debezium and Apache Kafka streamed relational database updates into Elasticsearch with sub-second replication delay (< 500 ms). The index mapping configured an *Edge N-Gram Analyzer* for instant prefix autocompletion, *BM25 Relevance Scoring*, and nested faceted aggregations. Primary shards were bounded to 30 GB allocations and JVM heaps were locked at 31 GB (`-Xms31g -Xmx31g`) to retain 64-bit Compressed OOPs performance.
+- **The System Outcome**: Catalog search p99 latency dropped from 14,000 ms to 35 ms. Typo-tolerant fuzzy matching resolved user misspellings reliably. Primary relational database CPU utilization decreased by 75% as text-heavy workloads were offloaded, driving a 22% increase in customer search-to-checkout conversions.
 
 ## 10. Production Gotchas
 
@@ -191,6 +194,9 @@ func SearchProducts(ctx context.Context, es *elasticsearch.Client, keyword strin
    *Mitigation*: Target shard sizes between 20 GB and 50 GB.
 3. **Cluster Red State via Disk Watermarks**: Elasticsearch enforces automated safety thresholds. When host storage reaches 95% capacity, the cluster enforces a *Flood Stage Block*, turning all indexes read-only.
 
-## 11. Quick Summary
+## 11. Key Takeaways
 
-Elasticsearch is a distributed, high-speed search and analytics engine anchored by the Inverted Index data structure. By offloading unstructured text search and analytics away from relational databases, high-throughput backend architectures deliver sub-millisecond, contextual search experiences at scale.
+- **Distributed Inverted Index Engine**: Elasticsearch maps terms to containing documents via Lucene inverted indexes, evaluating full-text and analytical queries across millions of records in sub-milliseconds.
+- **Do Not Replace Transactional Datastores**: Elasticsearch lacks ACID guarantees; maintain your transactional source of truth in relational databases and replicate read views into Elasticsearch via CDC.
+- **Cap JVM Heaps Below 32 GB**: Strictly keep JVM heap reservations under 31 GB (`-Xmx31g`) to preserve Java Compressed Object Pointers (Compressed OOPs) efficiency.
+- **Avoid Over-Sharding**: Maintain primary shard allocations within the optimal 20 GB to 50 GB window to avoid Lucene file descriptor exhaustion and heap fragmentation.

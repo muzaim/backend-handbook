@@ -124,12 +124,31 @@ When monitoring reverse proxies in Datadog or Prometheus/Grafana:
 - **`upstream_connect_time_seconds` (Histogram)**: Time taken to establish a TCP socket with upstream nodes. Over 1 second indicates socket pool exhaustion or saturated internal routing.
 - **`http_status_codes_total{status=~"5xx"}` (Counter)**: Rapid spikes in HTTP 502 (Bad Gateway) or 504 (Gateway Timeout) immediately flag crashing backends.
 
-## 9. Real-World Case Studies (Tech Giants)
+## 9. Real-World Case Studies
 
-- **Cloudflare**: Operates a global reverse proxy network originally built atop NGINX (and progressively migrated to a customized memory-safe Rust engine named *Pingora*) across 300+ edge data centers. It inspects and proxies trillions of daily requests, terminating TLS and filtering L7 volumetric DDoS before packets reach origin servers.
-- **GitHub**: Deploys **HAProxy** and **Envoy** as its edge reverse proxies for handling incoming Git SSH and HTTPS traffic. Envoy’s dynamic hot-reloading allows GitHub to reconfigure routing topologies without terminating long-running Git push/clone TCP sessions.
+### Mitigating Slowloris & Offloading TLS in High-Volume Banking Ingress
+
+- **The Engineering Problem**:
+  A digital banking core platform originally exposed dozens of Go application pods directly to the public Internet over port 443. Mobile clients operating on erratic or throttled mobile networks transmitted JSON request payloads very slowly (taking 2 to 4 seconds to complete a single HTTP body upload). Go worker goroutines and open TCP sockets remained starved and blocked waiting on client buffers, mimicking Slowloris connection starvation. Concurrently, repeated cryptographic TLS handshakes (RSA/ECDSA asymmetric key negotiations) consumed upwards of 40% of compute CPU cycles across backend instances.
+
+- **The Architectural Solution**:
+  1. **Edge Reverse Proxy Layer**: Platform engineers deployed an autoscaling NGINX/Envoy cluster into public subnets (*DMZ*) acting as the sole ingress point ahead of strictly private backend subnets.
+  2. **TLS Offloading & Keep-Alive Pooling**: HTTPS was terminated entirely at the proxy edge using hardware crypto acceleration. Traffic between the proxy and upstream Go pods traversed private VPC links utilizing persistent HTTP keep-alive connection pools.
+  3. **Aggressive Request Buffering**: The reverse proxy was configured to asynchronously buffer incoming client request bodies into RAM. Only when the final byte was safely received did the proxy dispatch the complete request to upstream Go handlers over sub-millisecond local LAN connections.
+
+- **The Engineering Outcome**:
+  - Application server CPU utilization dropped from 82% to 38% immediately after eliminating TLS computational overhead.
+  - Active backend socket hold duration shrank from an average of 3,200ms to just 18ms per transaction.
+  - Upstream backend IPs remained strictly unaddressable from public networks, shutting down direct scanning and port-probing vulnerabilities.
 
 ## 10. Interesting Facts & Production Gotchas
 
 - **The X-Forwarded-For Pitfall**: Without proper proxy header configuration, backend logs will report the reverse proxy's IP for every single user request. Always configure `X-Forwarded-For` and `X-Real-IP`, and ensure your application trusts only designated reverse proxies to prevent spoofing.
 - **Upstream Keep-Alive Neglect**: A common beginner mistake is omitting HTTP keep-alive pools between the reverse proxy and upstream instances. The proxy then tears down and re-establishes TCP connections on every single request, quickly resulting in ephemeral port exhaustion (*TIME_WAIT storms*) during heavy traffic surges.
+
+## 11. Key Takeaways
+
+1. **Private Network Shield**: Shields internal service topology and IP addressing from direct public Internet exposure.
+2. **Computational Offloading**: Handles resource-intensive SSL/TLS negotiations, response compression, and buffering, freeing backends to focus on core domain logic.
+3. **Protection from Slow Clients**: Request buffering insulates application worker pools from network latency stalls caused by slow client links.
+4. **Mandatory Persistent Keep-Alives**: Maintain persistent TCP connection pools between the reverse proxy and upstream backends to eliminate ephemeral port exhaustion (`TIME_WAIT`).

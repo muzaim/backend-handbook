@@ -150,10 +150,20 @@ Untuk memantau stabilitas dan rasio kompensasi alur Saga pada Grafana / Datadog:
 
 ## 9. Studi Kasus Nyata di Industri
 
-- **Uber Trip Management via Cadence / Temporal**: Uber mengelola jutaan perjalanan menggunakan orkestrator alur kerja berbasis Saga (Cadence/Temporal). Dari mencocokkan pengemudi, reservasi pembayaran, hingga pelacakan rute, setiap langkah dimodelkan sebagai state machine terdistribusi yang mengeksekusi kompensasi jika pengguna atau pengemudi membatalkan perjalanan.
-- **Amazon Multi-Service Checkout**: Amazon memproses pesanan melalui rangkaian transaksi lokal: memotong voucher promosi, memverifikasi kartu kredit, dan mengirim instruksi ke robot gudang. Jika otorisasi kartu kredit ditolak, kompensasi otomatis mengembalikan voucher diskon pengguna tanpa mengunci database global.
+### Orkestrasi Pemesanan Paket Liburan Terintegrasi (Flight, Hotel, & Car Rental) dengan Saga Orchestrator
+
+- **Tantangan Rekayasa Riil (The Problem)**: Sebuah Online Travel Agent (OTA) menawarkan fitur pemesanan paket terpadu (Tiket Pesawat + Kamar Hotel + Sewa Mobil) dalam satu klik. Awalnya sistem menggunakan REST RPC berantai. Sering terjadi kondisi di mana kursi pesawat berhasil di-booking dan kartu kredit terpotong, tetapi kamar hotel ternyata habis atau API vendor sewa mobil timeout. Akibatnya, pelanggan mendapati tagihan kartu kredit aktif untuk tiket pesawat sementara kamar hotel tidak didapatkan, memicu puluhan ribu tiket komplain refund manual ke customer support.
+- **Implementasi Solusi Industri (The Architectural Solution)**: Tim merancang ulang alur pemesanan menggunakan *Orchestration-based Saga* dengan engine state machine (seperti Temporal). Tiap tahap didefinisikan sebagai langkah transaksi lokal yang berpasangan dengan fungsi kompensasi semantik: `ReserveFlight` dipasangkan dengan `CancelFlightBooking`, `ReserveHotel` dengan `CancelHotelBooking`, dan `AuthorizePayment` dengan `RefundPayment`. Jika terjadi kegagalan reservasi kamar hotel, Saga Orchestrator secara deterministik memicu alur kompensasi mundur secara berurutan: melepaskan reservasi kursi pesawat, membatalkan otorisasi pembayaran, dan memperbarui status pesanan menjadi `FAILED_REFUNDED`.
+- **Dampak & Hasil Sistem (The Outcome)**: Angka keluhan inkonsistensi transaksi parsial turun hingga 99,8%. Waktu rekonsiliasi manual oleh tim operasi berkurang dari 3 jam per insiden menjadi otomatis diselesaikan oleh engine kompensasi dalam waktu < 2 detik. Tingkat keberhasilan pemesanan paket melonjak tanpa risiko tagihan phantom bagi pengguna.
 
 ## 10. Fakta Menarik & Gotchas Production
 
 - **Semantic Rollback Bukan Undo Biasa**: Di database SQL, `ROLLBACK` memulihkan data persis ke kondisi awal sebelum query berjalan. Di dalam Saga, kompensasi adalah transaksi baru ke depan (*compensating forward action*). Misal: kamu tidak bisa membatalkan pengiriman email selamat datang yang terlanjur terkirim ke inbox pengguna; kompensasinya adalah mengirimkan email kedua: *"Mohon maaf, pendaftaran akun Anda dibatalkan karena kuota habis"*.
 - **Pivot Transaction**: Dalam setiap Saga, selalu ada satu langkah penentu yang disebut **Pivot Transaction**. Setelah langkah pivot sukses, saga dijamin tidak akan pernah di-rollback lagi, melainkan dipaksa maju sampai selesai (*retry until success*). Mengidentifikasi mana langkah pivot (biasanya proses pembayaran) sangat penting agar kamu tidak perlu repot-repot membuat transaksi kompensasi yang mustahil.
+
+## 11. Rangkuman Singkat
+
+- **Gantikan 2PC dengan Kompensasi**: Saga menyelesaikan transaksi multi-service terdistribusi melalui serangkaian transaksi lokal yang dipasangkan dengan fungsi pembatalan (*compensating transactions*).
+- **Pilih Orchestration vs Choreography**: Gunakan orkestrasi tersentralisasi (Temporal / Cadence) untuk alur transaksi kompleks dengan banyak langkah; gunakan koreografi event untuk alur sederhana 2-3 service.
+- **Pahami Pivot Transaction**: Tentukan langkah pivot bisnis (biasanya pembayaran); sebelum pivot tercapai alur bisa dikompensasi mundur, setelah pivot sukses transaksi dipaksa maju hingga tuntas (*retry forward*).
+- **Kompensasi Wajib Idempotent**: Aksi kompensasi bisa terpicu berulang kali karena retry jaringan; seluruh fungsi kompensasi harus aman dieksekusi berkali-kali tanpa efek samping ganda.

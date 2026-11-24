@@ -135,10 +135,29 @@ func CallDownstreamWithTimeout(ctx context.Context, payload []byte) (*http.Respo
 -   **`request_duration_seconds` (Histogram p95/p99)**: Jika grafik p99 mulai mendekati garis batas timeout (misal menyentuh 2.3 detik pada timeout 2.5 detik), downstream sedang mengalami degradasi serius.
 -   **`thread_pool_active_workers` (Gauge)**: Memantau lonjakan worker yang tertahan saat timeout terjadi.
 
-## 9. Studi Kasus Nyata di Industri
+## 9. Studi Kasus Industri Nyata
 
--   **Amazon Web Services (AWS SDK)**: AWS mendesain seluruh client SDK resminya dengan default socket read timeout yang sangat agresif (sering kali di bawah 1 detik untuk internal call DynamoDB). Amazon menemukan bahwa membatalkan request yang lambat dan mengirimkan request baru ke node replika lain jauh lebih cepat daripada menunggu node yang lambat pulih.
--   **Google (gRPC Context Deadlines)**: Google mewajibkan penggunaan _Deadlines_ di protokol gRPC mereka. Nilai deadline waktu ini diteruskan secara otomatis (_propagated_) melintasi puluhan service microservices. Jika waktu sisa tinggal 100ms saat request tiba di Service ke-5, Service ke-5 tidak akan membuang CPU mengeksekusi operasi yang dipastikan akan timeout di sisi user.
+### Penanganan Hanging Socket & Goroutine Starvation pada Integrasi Payment Provider
+
+- **Tantangan Rekayasa Riil (The Problem)**:
+  Sebuah platform e-commerce memproses transaksi kartu kredit melalui API pihak ketiga (*Third-Party Payment Gateway*). Developer Go menggunakan client bawaan standar `http.DefaultClient` tanpa menyetel konfigurasi timeout (`Timeout: 0`). Suatu hari, penyedia pembayaran mengalami deadlock internal pada data center mereka: soket koneksi TCP berhasil terhubung, namun server mereka tidak pernah mengirimkan paket data balasan maupun memutus koneksi (*hanging socket*). Dalam rentang 90 detik, ada 4.500 transaksi checkout masuk. Setiap request melahirkan goroutine Go baru yang langsung tertahan selamanya menunggu I/O data (`IO Wait`). Jumlah goroutine aktif melonjak dari 150 menjadi 4.500+, alokasi memori heap RAM meledak, dan Linux kernel mengeksekusi OOM Killer (`OOMKilled`) yang meruntuhkan seluruh container `order-service` berulang kali.
+
+- **Implementasi Solusi Industri (The Architectural Solution)**:
+  1. **Granular Transport & Context Deadlines**: Diterapkan `http.Client` kustom yang membatasi setiap fase koneksi secara presisi:
+     ```go
+     transport := &http.Transport{
+         DialContext: (&net.Dialer{Timeout: 1 * time.Second}).DialContext,
+         TLSHandshakeTimeout: 1 * time.Second,
+         ResponseHeaderTimeout: 2 * time.Second,
+     }
+     client := &http.Client{Transport: transport}
+     ```
+  2. **End-to-End Context Propagation**: Setiap transaksi dibungkus dengan batas atas `context.WithTimeout(ctx, 3500*time.Millisecond)`. Context ini diteruskan ke query database dan panggilan jaringan lainnya, menjamin bahwa jika sisa waktu tidak mencukupi, seluruh proses downstream langsung dibatalkan seketika.
+  3. **Fast-Failure Response Handling**: Begitu batas waktu 3.5 detik terlampaui, goroutine langsung dilepaskan kembali ke pool, koneksi TCP ditutup paksa, dan sistem mengembalikan status transaksi `PENDING_VERIFICATION` ke pengguna tanpa membuat pengguna menunggu di layar checkout yang macet.
+
+- **Dampak & Hasil Sistem (The Engineering Outcome)**:
+  - Jumlah goroutine aktif stabil di angka <300 dan lonjakan memori OOMKilled tereliminasi 100%, bahkan ketika server pihak ketiga macet total selama berjam-jam.
+  - Fail-fast deterministik tercapai: sistem menolak request menggantung tepat pada milidetik ke-3.500, melindungi ketersediaan sumber daya server untuk melayani transaksi pembayaran lain yang lancar.
 
 ## 10. Fakta Menarik & Gotchas Production
 
@@ -146,3 +165,10 @@ func CallDownstreamWithTimeout(ctx context.Context, payload []byte) (*http.Respo
 -   **Timeout Inversion (Bencana Timeout Terbalik)**: Ini adalah bug arsitektur paling sering terjadi di microservices.  
     Misal: Client Frontend timeout = 3 detik. API Gateway timeout = 5 detik. Downstream Service timeout = 10 detik.  
     _Akibatnya:_ Pada detik ke-3, browser pengguna sudah menutup koneksi dan menyerah. Namun API Gateway dan Downstream Service tetap membakar CPU dan I/O sampai detik ke-10 mengerjakan pekerjaan yang hasilnya sudah tidak dipedulikan oleh siapa pun (_wasted compute_). Aturan emasnya: **Timeout di layer terdalam harus selalu lebih pendek daripada timeout di layer terluar!**
+
+## 11. Rangkuman Singkat
+
+1. **Jangan Percaya Default Timeout**: Sebagian besar runtime (termasuk Go `http.DefaultClient`) memiliki default timeout nol (tanpa batas waktu); selalu konfigurasikan timeout secara eksplisit di seluruh panggilan jaringan.
+2. **Propagasi Context Deadline**: Selalu teruskan batas waktu via `context.Context` ke database dan dependensi downstream agar operasi yang tertinggal langsung dibatalkan sebelum membuang komputasi CPU.
+3. **Patuhi Hierarki Timeout**: Timeout di layer terdalam harus selalu lebih singkat dibanding layer terluar untuk mencegah anti-pattern *Timeout Inversion*.
+4. **Isolasi Degradasi Dependensi**: Jangan biarkan kegagalan satu layanan pihak ketiga menyandera worker thread dan menenggelamkan seluruh ketersediaan aplikasi utama Anda.

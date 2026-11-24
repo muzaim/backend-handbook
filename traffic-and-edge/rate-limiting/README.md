@@ -159,10 +159,24 @@ func IsRequestAllowed(rdb *redis.Client, clientID string, maxCapacity int64, ref
 -   **`rate_limit_token_depth` (Gauge)**: Rata-rata persentase sisa token per client (mendeteksi seberapa dekat ekosistem dari batas saturasi).
 -   **`rate_limiter_latency_microseconds` (Histogram)**: Overhead evaluasi key di Redis. Wajib di bawah 1 milidetik.
 
-## 9. Studi Kasus Nyata di Industri
+## 9. Studi Kasus Industri Nyata
 
--   **Stripe**: Menerapkan arsitektur 4-layer rate limiter yang sangat canggih untuk melindungi API finansial mereka: _Request Rate Limiter_ (mencegah lonjakan dasar), _Allocation Rate Limiter_ (kuota berbasis tier akun), _Concurrent Request Limiter_ (membatasi request paralel yang sedang aktif), dan _Fleet Usage Limiter_ (penyisihan beban saat terjadi insiden downstream).
--   **Cloudflare**: Menjalankan rate limiting di ratusan server Edge menggunakan algoritma Sliding Window counter. Cloudflare mampu mendeteksi dan meredam miliaran request serangan Layer 7 DDoS dalam hitungan detik sebelum serangan sempat menyentuh infrastruktur origin pelanggan.
+### Penangkalan Credential Stuffing & Bot Scraping pada Platform E-Commerce
+
+- **Tantangan Rekayasa Riil (The Problem)**:
+  Sebuah platform e-commerce mengalami serangan *credential stuffing* masif pada endpoint `/api/v1/auth/login` dan scraping agresif pada endpoint `/api/v1/search`. Sindikat botnet mendistribusikan 40.000 RPS melalui ribuan proxy IP residensial. Akibatnya, CPU instance backend Go melonjak 100% karena memproses fungsi verifikasi hashing password `bcrypt` (yang sengaja dirancang memakan CPU berat). Di saat bersamaan, query pencarian teks produk yang mahal membanjiri buffer database PostgreSQL hingga seluruh checkout pelanggan sah mengalami *timeout*.
+
+- **Implementasi Solusi Industri (The Architectural Solution)**:
+  1. **Multi-Tier Layered Limiting**: Diterapkan dua lapis proteksi di API Gateway dan Redis Cluster:
+     - *Layer Ingress IP (Sliding Window Log)*: Membatasi akumulasi request per IP publik hingga maksimal 120 req/menit untuk memotong bot berskala besar.
+     - *Layer Endpoint Sensitif (Atomic Token Bucket via Redis Lua Script)*: Endpoint `/login` diberi kuota ketat 5 request per menit per kombinasi identitas akun (`login:attempt:{username}`), dieksekusi atomik lewat Lua script agar tidak ada celah *race condition*.
+  2. **Standardized Response Contract**: Begitu kuota habis, gateway langsung mengembalikan respons `HTTP 429 Too Many Requests` dalam waktu 0.8ms tanpa menyentuh backend Go, lengkap dengan header `Retry-After: 60` dan `X-RateLimit-Remaining: 0`.
+  3. **Adaptive Backoff Penalties**: Client atau IP yang terus-menerus menembak saat kuota habis dikenakan eskalasi hukuman (*exponential jail*) di mana durasi blokir dilipatgandakan otomatis di Redis key TTL.
+
+- **Dampak & Hasil Sistem (The Engineering Outcome)**:
+  - Utilisasi CPU server backend anjlok dari 100% menjadi stabil di angka 28% karena 94% trafik bot langsung dipangkas di pintu masuk gateway.
+  - Beban IOPS database PostgreSQL turun 70%, mengembalikan latensi p99 pengguna sah dari 8.000ms ke level normal 45ms.
+  - Percobaan pembobolan akun berhasil digagalkan total tanpa memblokir pengguna sah yang berada di alamat IP publik yang sama.
 
 ## 10. Fakta Menarik & Gotchas Production
 
@@ -171,3 +185,10 @@ func IsRequestAllowed(rdb *redis.Client, clientID string, maxCapacity int64, ref
     -   `X-RateLimit-Remaining`: Sisa kuota request yang masih bisa digunakan.
     -   `Retry-After`: Jumlah detik yang harus ditunggu client sebelum boleh mencoba kembali.
 -   **Race Condition di Redis**: Kesalahan umum developer junior adalah mengimplementasikan rate limiter dengan pola: `GET count`, cek jika `< limit`, lalu `INCR count`. Di kondisi high throughput, jeda waktu antara `GET` dan `INCR` menyebabkan ribuan request lolos secara serentak (_race condition_). Solusinya: gunakan **Redis Lua Script** agar operasi pembacaan dan pemotongan token dieksekusi secara atomik (_atomic transaction_).
+
+## 11. Rangkuman Singkat
+
+1. **Tameng Pelindung Sumber Daya**: Mencegah downstream database dan worker thread tumbang akibat lonjakan trafik tak terkendali atau serangan bot.
+2. **Wajib Operasi Atomik**: Gunakan evaluasi Redis Lua Script tunggal untuk menghindari celah *race condition* konkurensi antara pembacaan dan pemotongan kuota.
+3. **Diferensiasi Beban Endpoint**: Terapkan limitasi super ketat pada endpoint komputasi mahal (seperti hashing password bcrypt atau ekspor data) dibanding endpoint baca biasa.
+4. **Transparansi Header**: Selalu sertakan `X-RateLimit-Limit`, `X-RateLimit-Remaining`, dan `Retry-After` saat mengembalikan status `HTTP 429` agar client dapat menerapkan jeda tunggu secara elegan.

@@ -154,8 +154,11 @@ Metrik untuk memantau performa agent OTel Collector:
 
 ## 9. Studi Kasus Nyata di Industri
 
--   **Uber (Pencipta Jaeger Tracing)**: Uber menangani ratusan ribu perjalanan per detik di ribuan microservices. Mereka menggunakan distributed tracing untuk melacak setiap transaksi pemesanan mobil dan mendeteksi microservice mana yang gagal memenuhi SLA.
--   **Shopify Flash Sales**: Shopify menggunakan OpenTelemetry untuk men-trace setiap transaksi checkout flash sale dan mendeteksi bottleneck lock database sebelum memicu kegagalan sistem global.
+### Pelacakan Latensi Terdistribusi Lintas 40 Microservices dan Diagnosa Bottleneck Database
+
+- **Tantangan Rekayasa Riil (The Problem)**: Sebuah platform super-app ride-hailing dan delivery memproses alur checkout pesanan yang melintasi 40 microservices (API Gateway -> Order -> Promo -> Driver Matching -> Fraud -> Payment -> Partner Switch). Rata-rata latensi p99 pesanan mendadak melonjak dari 400 ms menjadi 9.500 ms secara acak. Log server di masing-masing service hanya mencatat pesan generik `request completed`, tanpa ada petunjuk service mana yang menyebabkan kelambatan. Tim engineering dari 6 divisi berbeda saling menyalahkan (_finger-pointing_) selama 5 hari tanpa menemukan akar masalah.
+- **Implementasi Solusi Industri (The Architectural Solution)**: Seluruh arsitektur microservices distandarisasi menggunakan *OpenTelemetry (OTel)* SDK dan W3C Trace Context (`traceparent` header). Setiap panggilan HTTP dan gRPC secara otomatis menginjeksikan dan mengekstrak konteks trace terdistribusi. Dijalankan armada *OTel Collector* yang mengumpulkan span telemetri dan mengekspornya ke Grafana Tempo/Jaeger. Diterapkan kebijakan *Tail-Based Sampling*: 100% trace yang menghasilkan error 5xx atau latensi di atas 2 detik disimpan secara permanen, sementara trace normal disampling hanya 2%.
+- **Dampak & Hasil Sistem (The Outcome)**: Rantai grafik waterfall visualisasi trace mengungkap bottleneck dalam hitungan menit: sebuah query `SELECT ... FOR UPDATE` di Fraud Service mengalami antrean row-lock selama 8,2 detik akibat index miss. Waktu diagnosa akar masalah (*Root Cause Analysis / RCA*) terpangkas dari 5 hari menjadi di bawah 10 menit. Latensi checkout p99 berhasil dipulihkan kembali ke 250 ms, menghemat ratusan jam kerja engineer dan menekan biaya storage trace hingga 85% berkat tail-based sampling.
 
 ## 10. Fakta Menarik & Gotchas Production
 
@@ -165,3 +168,10 @@ Metrik untuk memantau performa agent OTel Collector:
 -   **100% Trace Sampling Bankruptcy**:  
     Merekam 100% trace pada sistem bervolume 100.000 RPS akan menghasilkan **8,6 miliar span per hari**, yang dapat menghabiskan puluhan Terabyte storage SSD dan menelan biaya cloud jutaan dolar per bulan!  
     _Solusi Wajib:_ Gunakan **Tail-Based Sampling** di OTel Collector: setel sampling rate 1% untuk request sukses berlatensi normal (< 200 ms), tetapi setel **100% sampling** untuk semua request berstatus HTTP 5xx atau latensi > 1 detik.
+
+## 11. Rangkuman Singkat
+
+- **Standar Terbuka Observabilitas Global**: OpenTelemetry (OTel) menyediakan satu set API, SDK, dan tooling standar vendor-agnostik untuk mengumpulkan tiga pilar observabilitas (Traces, Metrics, Logs).
+- **Propagasi W3C Trace Context**: Kunci sukses distributed tracing adalah meneruskan header `traceparent` di setiap panggilan HTTP/gRPC dan membawa objek `context.Context` aktif ke seluruh goroutine dan query database.
+- **Hemat Biaya dengan Tail-Based Sampling**: Merekam 100% trace pada sistem trafik tinggi akan menguras kapasitas penyimpanan; gunakan OTel Collector untuk menyaring trace sukses (1-2%) namun menyimpan 100% trace error atau latensi tinggi.
+- **Isolasi Bottleneck dalam Hitungan Detik**: Distributed tracing mengubah dugaan abstrak menjadi grafik waterfall yang jelas, menunjukkan durasi presisi eksekusi setiap service, antrean pesan, dan query database.

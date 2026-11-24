@@ -153,8 +153,11 @@ Key telemetry metrics to observe Kubernetes cluster health and scheduling status
 
 ## 9. Real-World Case Studies
 
-- **Airbnb 100% Kubernetes Migration**: Airbnb migrated from legacy monolithic virtual machine infrastructure to more than 250 Kubernetes clusters managing tens of thousands of container pods. This standardized foundation enables Airbnb engineers to deploy over 500 service updates per day with full deployment isolation.
-- **OpenAI Large-Scale AI Training Clusters**: OpenAI coordinates vast multi-node Kubernetes clusters comprising thousands of synchronized GPU servers to run distributed deep learning training jobs and serve production API models reliably.
+### Autonomous Self-Healing and Dynamic Autoscaling on a Global Live-Streaming Platform
+
+- **The Engineering Problem**: A media streaming platform operated over 80 microservices deployed across fleets of static virtual machines. During high-profile live sports broadcasts, ingress traffic surged 10x in under 5 minutes, saturating VM memory and triggering host crashes. Platform operators scrambled to manually provision cloud compute instances and execute 20-minute configuration scripts, while millions of viewers experienced video stuttering and HTTP 504 gateway timeouts. When an unhandled panic killed a process off-hours, the service stayed down for hours until an engineer logged in to restart it.
+- **The Architectural Solution**: The company migrated its infrastructure to *Kubernetes (EKS/GKE)* with declarative GitOps delivery using ArgoCD. The team configured the *Horizontal Pod Autoscaler (HPA)* using CPU targets and custom HTTP queue depth metrics, paired with node autoscalers (*Karpenter*) to provision bare-metal compute instances in under 60 seconds upon cluster exhaustion. Pod specs enforced strict *Readiness Probes* to prevent traffic routing before cache hydration, and independent *Liveness Probes* paired with Deployment ReplicaSets to provide automated container self-healing during process deadlocks.
+- **The System Outcome**: Elastic scaling response time for 10x traffic surges plummeted from 20 minutes of frantic manual operations to 90 seconds of autonomous scaling. Platform availability reached 99.99% with rolling updates completely eliminating maintenance windows. Unplanned off-hours downtime dropped to 0%, as Kubernetes detected failed containers and rescheduled healthy replicas within seconds without human intervention.
 
 ## 10. Interesting Facts & Production Gotchas
 
@@ -163,3 +166,10 @@ Key telemetry metrics to observe Kubernetes cluster health and scheduling status
   - **Readiness Probe**: Dictates if a pod is initialized and ready to receive ingress traffic. If it fails, K8s merely unregisters the pod from the Service load balancer without killing it.
   - **Liveness Probe**: Dictates if the application is locked up in a deadlock. If it fails, K8s **FORCIBLY KILLS AND RESTARTS** the pod.  
   *The Fatal Trap:* If you wire a Liveness probe to check an external dependency (like a PostgreSQL database), then whenever the database experiences latency, K8s will erroneously conclude all 50 application pods are dead and kill them all simultaneously (*Massive CrashLoopBackOff Outage*)! Liveness probes must evaluate internal process health only.
+
+## 11. Key Takeaways
+
+- **Declarative Container Orchestration**: Kubernetes manages the scheduling, discovery, scaling, and rolling delivery of thousands of containerized services across elastic node clusters.
+- **Autonomous Self-Healing**: Kubernetes continuously monitors pod health, restarting crashed containers and rescheduling pods when worker hardware nodes fail.
+- **Decouple Liveness from Readiness**: Use readiness probes to govern traffic admission; never include external dependencies like databases inside liveness probes to prevent cascading reboot avalanches.
+- **Set Explicit Requests and Limits**: Always define compute resource requests for scheduling guarantees and limits to prevent memory leaks from triggering host kernel OOM panics.

@@ -203,8 +203,28 @@ func BackfillHistoricalData(ctx context.Context, db *sql.DB, batchSize int) {
 
 ## 9. Studi Kasus Industri Nyata
 
--   **GitHub (gh-ost)**: Mengembangkan tool open-source legendaris bernama **gh-ost** (_GitHub's Online Schema Migrations for MySQL_) untuk memigrasikan tabel miliaran baris tanpa trigger dan tanpa mengunci tabel, memanfaatkan stream binary log (binlog) secara asynchronous.
--   **Stripe**: Menerapkan protokol mitigasi migrasi ketat 4 fase untuk seluruh perubahan skema basis data PostgreSQL pembayaran mereka, memastikan miliaran transaksi harian tidak pernah terganggu oleh operasi DDL.
+### Refactoring Skema Tabel Akun 28 Juta Baris Tanpa Downtime
+
+- **Tantangan Rekayasa Riil (The Problem)**:
+  Pada sebuah platform perbankan digital, tim engineering perlu memecah kolom `full_name` menjadi `first_name` dan `last_name` pada tabel `users` yang menampung 28 juta baris data aktif. Developer pemula awalnya menjalankan script migrasi langsung pada jam sepi:
+  `ALTER TABLE users DROP COLUMN full_name, ADD COLUMN first_name VARCHAR(100), ADD COLUMN last_name VARCHAR(100);`  
+  Perintah ini membutuhkan kunci `AccessExclusiveLock`. Karena tabel `users` terus-menerus dibaca oleh transaksi transfer yang sedang aktif, perintah `ALTER TABLE` tertahan di antrean kunci (*lock queue*). Di PostgreSQL, `AccessExclusiveLock` yang mengantre akan memblokir seluruh query baca dan tulis berikutnya yang datang di belakangnya. Dalam 20 detik, seluruh *pool* koneksi database (500 koneksi) habis terpakai, API Gateway memuntahkan error `504 Gateway Timeout`, dan layanan perbankan lumpuh total selama 25 menit.
+
+- **Implementasi Solusi Industri (The Architectural Solution)**:
+  1. **Fase 1 (Expand - Non-Blocking DDL)**: Dibuat migrasi yang hanya menambahkan kolom baru sebagai nullable tanpa nilai default:
+     ```sql
+     SET lock_timeout = '2s';
+     ALTER TABLE users ADD COLUMN first_name VARCHAR(100), ADD COLUMN last_name VARCHAR(100);
+     ```
+     Dengan `lock_timeout = 2s`, operasi DDL hanya memegang lock selama 1.5ms tanpa risiko menyandera antrean query pengguna.
+  2. **Fase 2 (Dual-Writing di Kode Go)**: Backend dideploy dengan kode yang secara paralel menulis ke kolom lama dan kolom baru saat ada pengguna mendaftar atau mengedit profil.
+  3. **Fase 3 (Throttled Background Backfill Worker)**: Dijalankan proses worker mandiri di Go yang memigrasikan data historis 28 juta baris secara bertahap dalam batch kecil (1.000 baris per batch dengan jeda `time.Sleep(100ms)`). Worker terus memantau metrik `pg_stat_replication_lag` agar proses backfill tidak membuat database replica tertinggal.
+  4. **Fase 4 (Contract & Cleanup)**: Setelah metrik `COUNT(*) WHERE first_name IS NULL` mencapai angka 0, kode backend Go dialihkan murni membaca kolom baru. Kolom lama `full_name` kemudian dihapus secara aman di migrasi penutup.
+
+- **Dampak & Hasil Sistem (The Engineering Outcome)**:
+  - Seluruh proses migrasi 28 juta baris diselesaikan dengan downtime tepat **0 detik** (ketersediaan SLA 100%).
+  - Nol transaksi transfer atau login yang gagal akibat *table locking*.
+  - Menghilangkan risiko kegagalan rilis: pada Fase 2 dan 3, tim memiliki jaminan keamanan untuk melakukan rollback instan jika ditemukan bug tanpa kehilangan data baru.
 
 ## 10. Jebakan Umum di Lingkungan Produksi (Gotchas)
 
@@ -216,4 +236,7 @@ func BackfillHistoricalData(ctx context.Context, db *sql.DB, batchSize int) {
 
 ## 11. Rangkuman Singkat
 
-Zero-downtime database migration menggunakan pola Expand and Contract adalah pilar wajib rekayasa data di arsitektur berkecepatan tinggi. Dengan memecah modifikasi skema menjadi penambahan kolom paralel, penulisan ganda (dual-write), backfilling bertahap dengan throttling, dan pembersihan bertahap, evolusi database dapat berjalan mulus tanpa mengorbankan ketersediaan sistem bagi pengguna.
+1. **Prinsip Expand and Contract**: Pisahkan modifikasi skema destruktif menjadi penambahan kolom baru (Expand), penulisan ganda (Dual-write), pembaruan data bertahap (Backfill), dan pembersihan akhir (Contract).
+2. **Kendalikan Lock Timeout**: Selalu sertakan `SET lock_timeout = '2s'` pada migrasi DDL produksi untuk mencegah antrean `AccessExclusiveLock` menenggelamkan connection pool database.
+3. **Throttled Batch Backfill**: Jangan pernah menjalankan update massal jutaan baris dalam 1 query raksasa; selalu gunakan batching kecil dengan jeda istirahat agar replikasi database tidak tertinggal.
+4. **Sinkronisasi Siklus Deployment**: Pastikan seluruh armada container versi lama telah selesai dimatikan (*rolling update complete*) sebelum menjalankan tahap penghapusan kolom lama.

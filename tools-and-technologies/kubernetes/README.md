@@ -160,8 +160,11 @@ Untuk memantau stabilitas cluster Kubernetes melalui Prometheus dan Grafana:
 
 ## 9. Studi Kasus Nyata di Industri
 
--   **Migrasi Airbnb 100% ke Kubernetes**: Airbnb memigrasikan ratusan service monolitik mereka ke lebih dari 250 cluster Kubernetes yang mengelola puluhan ribu kontainer. Standarisasi K8s memungkinkan tim developer Airbnb mendeploy kode ke production lebih dari 500 kali per hari secara independen.
--   **Infrastruktur Model AI OpenAI**: OpenAI menjalankan kluster Kubernetes berskala raksasa (ribuan GPU node) untuk melatih dan melayani model bahasa besar (seperti GPT-4). Kubernetes mengorkestrasi penjadwalan komputasi parallel berskala tinggi secara elastis.
+### Orkestrasi Pemulihan Mandiri (Self-Healing) dan Autoscaling Dinamis pada Platform Streaming Skala Global
+
+- **Tantangan Rekayasa Riil (The Problem)**: Sebuah platform media streaming mengoperasikan lebih dari 80 microservices yang awalnya dideploy langsung di atas puluhan virtual machine statis. Ketika terjadi siaran langsung pertandingan olahraga besar, lonjakan trafik hingga 10x lipat dalam waktu 5 menit membuat VM kehabisan memori dan crash. Tim operasi harus begadang secara manual mem-provisioning instance server baru, menginstal dependencies via Ansible yang memakan waktu 20 menit, sementara jutaan penonton mengalami buffering dan error 504. Ketika suatu instance crash di malam hari tanpa peringatan, service tersebut tetap mati berjam-jam hingga ada engineer yang merestart manual.
+- **Implementasi Solusi Industri (The Architectural Solution)**: Seluruh arsitektur dimigrasikan ke *Kubernetes (EKS/GKE)* dengan strategi declarative infrastructure (GitOps via ArgoCD). Tim mengonfigurasi *Horizontal Pod Autoscaler (HPA)* berbasis metrik CPU dan custom metric (antrean request HTTP), dikombinasikan dengan *Karpenter* / Cluster Autoscaler untuk otomatis menambahkan node server dalam 60 detik saat kuota cluster menipis. Diterapkan *Readiness Probe* untuk memastikan pod hanya menerima traffic setelah cache terisi, serta *Liveness Probe* lokal dan replica sets untuk menjamin *self-healing* otomatis jika container mengalami thread deadlock atau unhandled panic.
+- **Dampak & Hasil Sistem (The Outcome)**: Waktu reaksi scaling terhadap lonjakan 10x trafik terpangkas dari 20 menit manual menjadi otomatis tuntas dalam 90 detik. Ketersediaan platform (uptime SLA) naik menjadi 99,99%, dengan zero downtime berkat rolling update zero-downtime. Insiden service mati di luar jam kerja turun 100% karena K8s otomatis me-restart pod yang bermasalah dan mengalihkan traffic ke pod sehat dalam hitungan detik.
 
 ## 10. Fakta Menarik & Gotchas Production
 
@@ -170,3 +173,10 @@ Untuk memantau stabilitas cluster Kubernetes melalui Prometheus dan Grafana:
     -   **Readiness Probe**: Memeriksa apakah pod sudah siap menerima trafik (misal: koneksi DB sudah siap). Jika gagal, K8s hanya mencabut pod dari Load Balancer tanpa membunuhnya.
     -   **Liveness Probe**: Memeriksa apakah aplikasi macet/deadlock. Jika gagal, K8s akan **MERESTART PAKSA** pod tersebut.  
         _Gotchas:_ Jika liveness probe kamu arahkan ke dependency eksternal (misal database), saat database overload dan timeout, K8s akan membunuh dan merestart seluruh 50 pod aplikasi secara bersamaan (_CrashLoopBackOff massal_)! Liveness probe harus murni mengecek kesehatan internal container itu sendiri.
+
+## 11. Rangkuman Singkat
+
+- **Orkestrasi Kontainer Deklaratif**: Kubernetes mengotomatiskan penjadwalan, deployment, penskalaan, dan pengelolaan jaringan ribuan kontainer di seluruh kluster server komputasi.
+- **Self-Healing Otomatis**: K8s secara mandiri memonitor kesehatan pod, me-restart kontainer yang gagal atau macet, dan mengganti pod yang berjalan di atas worker node yang crash.
+- **Bedakan Liveness vs Readiness**: Gunakan readiness probe untuk mengontrol kapan pod boleh menerima trafik; jangan pernah memeriksa dependensi eksternal (database) di liveness probe agar terhindar dari pemusnahan pod massal.
+- **Tentukan Requests dan Limits dengan Cermat**: Selalu definisikan resource requests untuk penjadwalan pod dan limits untuk mencegah satu kontainer menghabiskan seluruh memori host (OOMKilled).

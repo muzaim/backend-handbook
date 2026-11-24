@@ -133,12 +133,31 @@ Saat mengawasi reverse proxy di Grafana atau Datadog, berikut metrik utama yang 
 -   **`upstream_connect_time_seconds` (Histogram)**: Waktu yang dibutuhkan proxy untuk membuka koneksi TCP ke backend. Jika > 1 detik, connection pool upstream penuh atau network jenuh.
 -   **`http_status_codes_total{status=~"5xx"}` (Counter)**: Lonjakan HTTP 502 (Bad Gateway) atau 504 (Gateway Timeout) adalah indikator instan bahwa backend sedang tumbang.
 
-## 9. Studi Kasus Nyata di Industri
+## 9. Studi Kasus Industri Nyata
 
--   **Cloudflare**: Menjalankan jaringan reverse proxy global berbasis NGINX (dan kini bermigrasi ke engine Rust buatan sendiri bernama _Pingora_) di lebih dari 300 kota di dunia. Reverse proxy ini memproses puluhan triliun request per hari, menangani terminasi TLS, mitigasi DDoS, dan caching di tepi jaringan (_edge_).
--   **GitHub**: Menggunakan **HAProxy** dan **Envoy** sebagai reverse proxy terdepan untuk menerima seluruh trafik Git SSH dan HTTPS. GitHub memanfaatkan kemampuan Envoy dalam melakukan dynamic hot-reloading konfigurasi tanpa memutus koneksi streaming git push/pull yang sedang berjalan.
+### Mitigasi Slowloris & Offloading TLS pada Arsitektur Finansial
+
+- **Tantangan Rekayasa Riil (The Problem)**:
+  Sebuah platform perbankan digital awalnya mengekspos puluhan container backend Go langsung ke internet publik via port 443. Ketika pengguna mobile dengan koneksi seluler lambat (3G atau sinyal buruk) melakukan transfer, proses upload body JSON request berlangsung lambat (menghabiskan 2–4 detik per transaksi). Soket TCP dan goroutine di server backend tertahan (*slow client starvation*), mirip dengan serangan Slowloris. Selain itu, proses negosiasi kriptografi TLS handshake (RSA/ECDSA) berulang kali menghabiskan 40% kapasitas CPU instance backend aplikasi.
+
+- **Implementasi Solusi Industri (The Architectural Solution)**:
+  1. **Edge Reverse Proxy Layer**: Tim arsitektur memasang cluster NGINX/Envoy di subnet publik (*DMZ*) sebagai perantara tunggal di depan backend private.
+  2. **TLS Offloading & SSL Session Resumption**: Enkripsi HTTPS diterminasi sepenuhnya di reverse proxy menggunakan hardware crypto acceleration. Komunikasi dari proxy ke upstream pod Go dialihkan melalui jaringan privat VPC menggunakan protokol HTTP keep-alive pool persisten.
+  3. **Aggressive Request Buffering**: Reverse proxy menahan dan mengumpulkan seluruh paket data request dari client seluler yang lambat ke dalam buffer RAM proxy. Begitu seluruh payload HTTP diterima lengkap, barulah request ditembakkan ke backend Go dengan latensi sub-milidetik.
+
+- **Dampak & Hasil Sistem (The Engineering Outcome)**:
+  - Utilisasi CPU pada instance backend Go turun drastis dari 82% menjadi 38% karena terbebas dari beban komputasi TLS handshake.
+  - Waktu penahanan soket (*socket hold time*) di backend turun dari rata-rata 3.200ms menjadi hanya 18ms per transaksi.
+  - Seluruh IP server backend terlindungi di dalam VPC tertutup, mencegah pemindaian port publik dan serangan eksploitasi zero-day langsung.
 
 ## 10. Fakta Menarik & Gotchas Production
 
 -   **Masalah X-Forwarded-For**: Backend sering salah membaca IP pengunjung menjadi IP si Reverse Proxy. Kamu wajib mengonfigurasi header `X-Forwarded-For` dan `X-Real-IP` agar fitur logging, geolokasi, dan anti-fraud tidak keliru.
 -   **Connection Keep-Alive ke Upstream**: Banyak developer lupa menyalakan HTTP keep-alive antara reverse proxy dan backend server. Akibatnya, reverse proxy membuka-tutup socket TCP baru untuk setiap request, yang memicu masalah _port exhaustion_ (_TIME_WAIT storm_) saat trafik melonjak tajam.
+
+## 11. Rangkuman Singkat
+
+1. **Perisai Jaringan Privat**: Menyembunyikan topologi IP dan struktur internal backend dari eksposur langsung ke internet publik.
+2. **Offload Beban Berat Komputasi**: Menangani negosiasi TLS/SSL, kompresi respons, dan request buffering sehingga backend fokus murni pada logika bisnis.
+3. **Penyelamat dari Slow Clients**: Fitur buffering melindungi aplikasi dari thread/goroutine starvation akibat koneksi client yang lambat.
+4. **Wajib Persistent Upstream Keep-Alive**: Selalu aktifkan pool koneksi persisten ke upstream server guna mencegah socket port exhaustion (`TIME_WAIT`).

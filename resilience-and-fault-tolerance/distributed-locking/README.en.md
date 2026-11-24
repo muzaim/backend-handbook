@@ -168,8 +168,24 @@ func (l *DistributedLocker) ReleaseLock(ctx context.Context, resourceKey string,
 
 ## 9. Real-World Case Studies
 
-- **Ticketmaster**: Relies on high-throughput distributed locking to reserve seats for 5-minute checkout windows during stadium stadium events, preventing concurrent buyers from checking out identical seat allocations.
-- **Shopee / Tokopedia**: During midnight flash sales where millions of users contest 10 discounted units, in-memory distributed locks in Redis absorb 99.9% of concurrent contention, ensuring only verified winners are directed to database checkout queues.
+### Eliminating Inventory Overselling in an 80,000 RPS Flash Sale
+
+- **The Engineering Problem**:
+  During a flash promotion, 10 units of heavily discounted laptops were contested simultaneously by 80,000 shoppers at 00:00:00. The checkout backend ran across 40 independent Go worker pods on Kubernetes. Local `sync.Mutex` locks provided zero concurrency protection because instances ran on physically isolated nodes. The application executed naive database reads and writes:
+  `SELECT stock FROM items WHERE id = 101;` followed by `UPDATE items SET stock = stock - 1 WHERE id = 101;`  
+  A massive *Distributed Race Condition* ensued: 40 pods read `stock = 10` within the exact same millisecond before any write committed. The catastrophic outcome: 340 customer checkout orders succeeded and were billed against an inventory of only 10 physical units (*negative inventory overselling*), forcing the platform into hundreds of millions in chargeback indemnities.
+
+- **The Architectural Solution**:
+  1. **Atomic In-Memory Mutex Acquisition**: Every incoming checkout was mandated to acquire an exclusive distributed lock key in Redis Cluster before touching the primary datastore:
+     `SET lock:inventory:item:101 {uuid_token} NX PX 2500`  
+     This executed purely in Redis RAM (< 0.4ms). Exactly 1 pod secured the lock per decrement cycle, while the remaining 79,990 concurrent requests were immediately rejected with fail-fast `409 Conflict: Sold Out / Contested` responses without burdening the PostgreSQL database.
+  2. **Safe Atomic Lua Release**: After decreasing inventory in PostgreSQL, the worker released the lock using an atomic Lua script verifying that the stored value still matched its specific worker UUID, preventing a slow worker from accidentally wiping out a newly established lock owned by a peer.
+  3. **Optimistic Locking Fencing Token**: At the PostgreSQL layer, stock decrement statements incorporated version checks: `WHERE id = 101 AND stock > 0`, establishing *defense-in-depth*.
+
+- **The Engineering Outcome**:
+  - Inventory overselling and negative stock anomalies dropped to precisely 0 cases: exactly 10 units were authorized and fulfilled.
+  - Transactional load hitting the PostgreSQL database dropped by 99.8%, as 79,990 competing requests were filtered in sub-milliseconds at the Redis layer.
+  - Database row-level locks and deadlocks were completely eliminated.
 
 ## 10. Production Gotchas
 
@@ -178,6 +194,9 @@ func (l *DistributedLocker) ReleaseLock(ctx context.Context, resourceKey string,
 2. **Omitting Expiration Leases (Permanent Deadlocks)**: Creating locks without `PX/EX` TTL parameters. If the worker encounters an unhandled panic before unlocking, the resource locks permanently.
 3. **Neglecting Fencing Tokens**: For systems demanding strict linearizability, pass incrementing monotonically increasing *Fencing Tokens* to ensure downstream datastores reject delayed writes from stale lock holders.
 
-## 11. Quick Summary
+## 11. Key Takeaways
 
-Distributed Locking coordinates concurrency across multi-node architectures to prevent data corruption. By pairing atomic in-memory primitives (`SET NX PX`), random UUID ownership tokens, and Lua script releases, distributed locking shields critical business transactions from the catastrophic effects of race conditions and overselling.
+1. **Cross-Node Concurrency Coordination**: Replaces local in-memory mutex limits to guarantee that exactly 1 worker executes a critical section across distributed multi-container clusters.
+2. **Mandatory `SET NX PX` + UUID Primitive**: Always configure automatic expiration leases (TTL) to avoid permanent deadlocks on worker crashes, coupled with random UUID ownership tokens.
+3. **Atomic Lua Script Release**: Always verify lock ownership inside an atomic Lua evaluation prior to deletion to prevent inadvertently removing a peer's valid lock.
+4. **Defense-in-Depth Protection**: Pair in-memory distributed locks with underlying database state constraints (such as `WHERE stock > 0`) to guarantee absolute data integrity.

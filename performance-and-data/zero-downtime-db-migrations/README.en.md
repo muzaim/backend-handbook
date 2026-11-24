@@ -195,8 +195,28 @@ func BackfillHistoricalData(ctx context.Context, db *sql.DB, batchSize int) {
 
 ## 9. Real-World Case Studies
 
-- **GitHub (gh-ost)**: Engineered the open-source **gh-ost** (*GitHub's Online Schema Migrations for MySQL*) framework to execute non-blocking migrations on multi-billion row tables by trailing binary log streams without requiring database triggers.
-- **Stripe**: Mandates strict 4-phase migration protocols across all transactional PostgreSQL clusters, safeguarding billions of daily payment operations from disruptive DDL table locks.
+### Refactoring a 28-Million Row User Schema with Zero Downtime
+
+- **The Engineering Problem**:
+  At a digital banking platform, engineers were tasked with decomposing a legacy `full_name` column into separate `first_name` and `last_name` fields across a 28-million row `users` table. An engineer executed a naive migration script during off-peak hours:
+  `ALTER TABLE users DROP COLUMN full_name, ADD COLUMN first_name VARCHAR(100), ADD COLUMN last_name VARCHAR(100);`  
+  This operation demanded an `AccessExclusiveLock`. Because active fund transfer transactions were continually acquiring lightweight `RowShareLocks` on the table, the `ALTER TABLE` statement was forced into PostgreSQL's lock queue. In PostgreSQL, a queued `AccessExclusiveLock` blocks every subsequent read and write query arriving behind it. Within 20 seconds, the 500-slot application connection pool was exhausted, API gateways returned `504 Gateway Timeout` errors, and the core banking platform experienced a catastrophic 25-minute outage.
+
+- **The Architectural Solution**:
+  1. **Phase 1 (Expand - Non-Blocking DDL)**: Engineers deployed a non-blocking migration adding the new fields as nullable without default values:
+     ```sql
+     SET lock_timeout = '2s';
+     ALTER TABLE users ADD COLUMN first_name VARCHAR(100), ADD COLUMN last_name VARCHAR(100);
+     ```
+     With `lock_timeout = '2s'`, the DDL acquired its lock in 1.5ms without endangering the transactional queue.
+  2. **Phase 2 (Dual-Writing Go Application Deployment)**: Backend code was deployed to write concurrently to both old and new columns whenever users registered or modified account data.
+  3. **Phase 3 (Throttled Background Backfill Worker)**: A standalone Go worker script backfilled the 28 million historical records in discrete chunks (1,000 rows per batch accompanied by a mandatory `time.Sleep(100ms)` pause). The worker monitored `pg_stat_replication_lag` to prevent write amplification from degrading read replicas.
+  4. **Phase 4 (Contract & Cleanup)**: Once metrics verified that `COUNT(*) WHERE first_name IS NULL` was 0, Go services were updated to read exclusively from the new columns, and the obsolete `full_name` column was safely dropped.
+
+- **The Engineering Outcome**:
+  - The entire 28-million row schema evolution was completed with precisely **0 seconds of downtime** (100% SLA availability).
+  - Zero banking transactions or authentications failed due to database table locks.
+  - Deployment risk was eliminated: Phases 2 and 3 allowed immediate rollback without loss of newly written customer data.
 
 ## 10. Production Gotchas
 
@@ -206,6 +226,9 @@ func BackfillHistoricalData(ctx context.Context, db *sql.DB, batchSize int) {
    *Mitigation*: Always enforce chunked batches (500 to 5,000 rows) paired with explicit `time.Sleep` intervals.
 3. **Dropping Columns While Old Pods Live**: Executing Phase 4 (Drop Column) while earlier application pods are still completing Kubernetes rolling update cycles.
 
-## 11. Quick Summary
+## 11. Key Takeaways
 
-Zero-downtime database migrations utilizing the Expand and Contract pattern represent an indispensable discipline in high-throughput data engineering. By decomposing disruptive schema alterations into parallel column expansion, dual-writes, throttled backfills, and progressive cleanups, datastore architectures evolve seamlessly without sacrificing system availability.
+1. **Expand and Contract Discipline**: Break breaking schema alterations into distinct phases: additive expansion (Expand), dual-writing, throttled backfills, and final contraction (Contract).
+2. **Strict Lock Timeouts**: Always enforce `SET lock_timeout = '2s'` on production DDL migrations to prevent pending `AccessExclusiveLocks` from starving application connection pools.
+3. **Throttled Batch Processing**: Never execute monolithic multi-million row `UPDATE` statements; always process migrations in discrete batches with explicit cooldown intervals.
+4. **Coordinate Deployment Lifecycles**: Ensure earlier container generations have completely terminated before executing destructive column drop operations.

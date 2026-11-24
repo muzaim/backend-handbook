@@ -155,8 +155,11 @@ Metrik wajib di dashboard monitoring CDN (Cloudflare Analytics, Fastly Insights,
 
 ## 9. Studi Kasus Nyata di Industri
 
--   **Shopify & Flash Sale Black Friday**: Shopify menggunakan Cloudflare dan Edge caching untuk menampung lonjakan traffic jutaan pembeli per detik selama promo Black Friday Cyber Monday (BFCM). Katalog produk dan inventaris cached di edge menyerap lebih dari 90% traffic, menjaga database origin Shopify tetap stabil tanpa lonjakan CPU berarti.
--   **GitHub & Fastly VCL Routing**: GitHub mengandalkan Fastly CDN dengan bahasa scripting VCL (_Varnish Configuration Language_) di layer edge untuk merutekan traffic repository, meng-cache pull request assets, dan melakukan _instant cache purging_ dalam hitungan 150 milidetik begitu developer melakukan push commit baru.
+### Penyerapan 95% Trafik Flash Sale Global dan Perlindungan Server Origin via Edge Caching
+
+- **Tantangan Rekayasa Riil (The Problem)**: Sebuah marketplace global menggelar kampanye belanja akhir tahun dengan lonjakan trafik hingga 120.000 HTTP request per detik pada katalog produk dan landing page promo. Server origin (database dan cluster API backend) kewalahan menangani pembacaan data statis dan semi-dinamis yang berulang, menyebabkan utilisasi database CPU menyentuh 100%, p99 latency melonjak dari 80 ms menjadi 12.000 ms, dan ribuan user mengalami kegagalan akses saat membuka katalog.
+- **Implementasi Solusi Industri (The Architectural Solution)**: Tim merekayasa strategi edge caching terdistribusi menggunakan CDN tiering (Cloudflare / CloudFront) dengan mengonfigurasi header `Cache-Control: public, max-age=60, s-maxage=600, stale-while-revalidate=30`. Aset media statis dikunci dengan immutable hash tags. Untuk data katalog semi-dinamis, diaktifkan *Tiered Caching / Origin Shield* guna mencegah *cache stampede* dari ratusan Edge PoP ke origin server, dikombinasikan dengan webhooks otomatis untuk memicu API cache purge instan saat harga produk diperbarui admin.
+- **Dampak & Hasil Sistem (The Outcome)**: CDN Edge Hit Ratio melonjak hingga 96,4%, memotong 96% beban request ke origin server. Waktu muat halaman (Time to First Byte / TTFB) bagi pengunjung global terpangkas dari 1.200 ms menjadi rata-rata 32 ms. Server origin beroperasi stabil di bawah 25% CPU selama puncak flash sale tanpa penambahan instans backend.
 
 ## 10. Fakta Menarik & Gotchas Production
 
@@ -166,3 +169,10 @@ Metrik wajib di dashboard monitoring CDN (Cloudflare Analytics, Fastly Insights,
 -   **Origin Shielding (Menyelamatkan Origin dari Serangan Cache Miss Global)**:  
     Jika CDN-mu memiliki 350 PoP di seluruh dunia, dan satu cache key kedaluwarsa pada aset populer, ke-350 PoP tersebut bisa secara bersamaan mengirim 350 request paralel ke origin server-mu (_multi-pop stampede_).  
     _Solusi Wajib:_ Aktifkan fitur **Origin Shield** (Cloudflare Tiered Cache / AWS CloudFront Origin Shield). Fitur ini menempatkan satu lapisan super-PoP perantara antara edge dan origin, sehingga hanya 1 request perantara yang diteruskan ke origin server.
+
+## 11. Rangkuman Singkat
+
+- **Dekatkan Konten ke Pengguna**: CDN mendistribusikan salinan konten statis dan semi-dinamis ke ratusan PoP (Point of Presence) edge global untuk memangkas latensi jaringan secara dramatis.
+- **Kuasai Header Cache-Control**: Manfaatkan `s-maxage` untuk cache CDN dan `stale-while-revalidate` untuk menyajikan konten stale secara instan sambil memperbarui cache di latar belakang secara asinkron.
+- **Bahaya Kebocoran Data Pribadi**: Pastikan endpoint terautentikasi dan data profil user selalu menyertakan `Cache-Control: private, no-store` agar respons privat tidak tersimpan di cache publik edge.
+- **Gunakan Origin Shielding**: Hindari kejatuhan server origin akibat *cache stampede* serentak dari ratusan PoP edge dengan menempatkan layer perantara *Tiered Cache / Origin Shield*.

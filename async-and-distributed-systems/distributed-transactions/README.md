@@ -186,10 +186,20 @@ Untuk memonitor latensi dan anomali transaksi terdistribusi pada Grafana / Datad
 
 ## 9. Studi Kasus Nyata di Industri
 
--   **Google Spanner TrueTime Distributed Transactions**: Google merancang Spanner untuk menyediakan ACID terdistribusi secara global tanpa lock blocking berkepanjangan dengan memanfaatkan perangkat keras jam atom (_Atomic Clocks_) dan GPS (_TrueTime API_). Spanner mengkoordinasikan transaksi multi-region dengan serializability penuh.
--   **CockroachDB Raft Consensus**: Alih-alih menggunakan koordinator 2PC tersentralisasi yang rentan SPOF, CockroachDB membagi data menjadi partisi range kecil yang masing-masing dikelola oleh konsensus Raft terdistribusi untuk menjamin transaksi konsisten tanpa mengorbankan ketersediaan kluster.
+### Kegagalan Two-Phase Commit (2PC) pada Sistem Kliring Antar-Bank dan Migrasi ke Konsistensi Eventual
+
+- **Tantangan Rekayasa Riil (The Problem)**: Sebuah konsorsium perbankan awalnya menerapkan protokol Two-Phase Commit (2PC / XA Transactions) yang menghubungkan Core Banking Database, Fraud Detection Database, dan Payment Switch eksternal secara sinkron. Ketika trafik transfer antar-bank memuncak di awal bulan, partisi jaringan intermiten menyebabkan koordinator transaksi mati saat prepare phase. Akibatnya, ratusan ribu row database terkunci (*distributed lock-in-doubt*), pool koneksi database exhausted (mencapai batas 2.000 max connections), dan throughput transfer anjlok hingga kegagalan berantai (*cascading outage*).
+- **Implementasi Solusi Industri (The Architectural Solution)**: Rekayasa ulang sistem memensiunkan protokol 2PC sinkron lintas domain jaringan dan beralih ke transaksi terdistribusi berbasis *Eventual Consistency* dan *Reconciliation Ledger*. Transaksi transfer dipecah menjadi state machine lokal: saldo pengirim didebit secara atomik dengan status `PENDING`, lalu instruksi transfer dikirim melalui message broker dengan jaminan pesan transaksional. Sistem kliring penerima memproses secara asinkron dan mengirimkan acknowledgement konfirmasi; proses reconciliation worker berkala (setiap 30 detik) mencocokkan mutasi ledger dan menyelesaikan transaksi *in-flight*.
+- **Dampak & Hasil Sistem (The Outcome)**: Throughput sistem melonjak 12x lipat (dari 450 TPS menjadi 5.500+ TPS). Ketergantungan *distributed locking* antar entitas dieliminasi sepenuhnya, menghapus risiko *lock contention* dan *pool exhaustion*. Ketersediaan sistem kliring naik dari 99,2% menjadi 99,99%, dengan zero orphan locks selama insiden partisi jaringan.
 
 ## 10. Fakta Menarik & Gotchas Production
 
 -   **Distributed Deadlock**: Ketika Service A mengunci row di Database 1 dan menunggu Database 2, sementara Service B mengunci row di Database 2 dan menunggu Database 1. Di database monolith, engine memiliki _Deadlock Detector_ otomatis. Di sistem terdistribusi, mendeteksi distributed deadlock hampir mustahil tanpa timeout global yang agresif.
 -   **Penyelesaian Transaksi di Dunia Nyata Bukan 2PC**: Banyak developer terkejut mengetahui bahwa perusahaan seperti Amazon, Uber, dan Netflix **TIDAK MENGGUNAKAN** 2PC untuk transaksi pemesanan mereka. Mereka menggunakan kompensasi bisnis: terima order dulu, jika pembayaran gagal semenit kemudian, kirim email _"Pembayaran Anda Ditolak"_ dan batalkan order secara asynchronous.
+
+## 11. Rangkuman Singkat
+
+- **Biaya Mahal 2PC**: Protokol 2-Phase Commit (2PC) bersifat *blocking*; latensi transaksi terdistribusi dibatasi oleh node paling lambat dan rawan kebuntuan (*in-doubt locks*) jika koordinator mati.
+- **Hindari 2PC Lintas Jaringan Publik**: Jangan gunakan 2PC/XA untuk microservices lintas jaringan cloud; batasi penggunaannya hanya di internal engine database terdistribusi modern (seperti Spanner atau CockroachDB).
+- **Pilih Konsistensi Bertahap**: Desain sistem bisnis skala besar dengan *eventual consistency* dan pola kompensasi (Saga) daripada memaksakan ACID kaku yang membunuh throughput.
+- **Audit Ledger & Rekonsiliasi**: Selalu sediakan log rekonsiliasi (*audit ledger*) dan worker berkala untuk memverifikasi serta menyeimbangkan status data yang mengalami kegagalan di tengah jalan.

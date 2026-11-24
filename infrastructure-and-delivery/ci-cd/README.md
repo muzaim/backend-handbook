@@ -186,8 +186,11 @@ Empat metrik industri standar DevOps Research and Assessment (DORA) untuk menguk
 
 ## 9. Studi Kasus Nyata di Industri
 
-- **Google Trunk-Based Development & Presubmits**: Google mengelola jutaan baris kode dalam satu monorepo raksasa. Sistem CI otomatis mereka menjalankan lebih dari 150 juta test runs per hari sebelum perubahan kode developer diizinkan merge ke branch trunk utama (*presubmit automated testing*).
-- **GitHub Automated Continuous Deployment**: GitHub mempraktikkan continuous deployment sejati di mana setiap Pull Request yang di-merge oleh engineer langsung dideploy ke production GitHub.com melalui serangkaian canary stages otomatis puluhan kali setiap hari kerja.
+### Otomatisasi Progressive Canary Rollout dan Deteksi Anomali Metrik Real-Time
+
+- **Tantangan Rekayasa Riil (The Problem)**: Sebuah portal fintech dengan 50 juta pengguna aktif awalnya melakukan deployment mingguan secara manual di tengah malam dengan metode "all-at-once". Suatu ketika, rilis baru membawa kebocoran memori (memory leak) tersembunyi yang baru terpicu setelah 10 menit melayani trafik produksi. Seluruh 200 pod crash bersamaan karena OOM (Out Of Memory), mengakibatkan downtime total selama 45 menit dan kerugian finansial reputasional yang masif.
+- **Implementasi Solusi Industri (The Architectural Solution)**: Tim merancang pipeline CI/CD modern berbasis *GitOps* (ArgoCD + Argo Rollouts). Deployment baru diuji melalui pipeline CI (linting, test unit/integrasi, dan image vulnerability scanning). Di level delivery produksi, diterapkan strategi *Canary Release*: versi baru awalnya hanya menerima 5% trafik publik selama 15 menit. Argo Rollouts menganalisis metrik Prometheus (HTTP error rate 5xx, latency p99, dan error log spikes). Jika error rate melonjak > 0,5%, pipeline secara otonom membatalkan rollout (*automated instant rollback*) dalam 3 detik tanpa intervensi manusia.
+- **Dampak & Hasil Sistem (The Outcome)**: Change Failure Rate anjlok dari 14% menjadi kurang dari 0,8%. MTTR (Mean Time to Recover) terpangkas dari 45 menit menjadi < 15 detik berkat rollback otomatis. Tim bertransformasi dari deployment mingguan yang menegangkan menjadi 15-20 deployment mandiri per hari kerja dengan *zero user-facing downtime*.
 
 ## 10. Fakta Menarik & Gotchas Production
 
@@ -198,3 +201,10 @@ Empat metrik industri standar DevOps Research and Assessment (DORA) untuk menguk
   3. Tahap 3: Salin data historis dari kolom lama ke kolom baru.
   4. Tahap 4: Hapus kolom lama setelah seluruh pod 100% menggunakan kode baru.
 - **Flaky Tests Are Tech Debt Cancer**: Jika ada satu unit test yang gagal 1 dari 10 kali karena timing race condition yang tidak rapi, developer akan mulai membiasakan diri mengklik tombol *"Re-run failed jobs"* tanpa memeriksa kode. Begitu kebiasaan ini terbentuk, satu bug berbahaya yang nyata akan lolos ke production karena dianggap hanya "flaky test biasa".
+
+## 11. Rangkuman Singkat
+
+- **Otomatisasi Penuh dari Commit ke Deploy**: CI memvalidasi kebenaran kode (build, lint, test) secara otomatis di setiap PR; CD mengantarkan kode yang terverifikasi ke production secara aman dan dapat diulang.
+- **Gunakan Strategi Rilis Progresif**: Hindari rilis serentak (*all-at-once*); terapkan *Canary* atau *Blue/Green Deployment* untuk membatasi *blast radius* jika versi baru memiliki bug tersembunyi.
+- **Automated Rollback Berbasis Metrik**: Hubungkan pipeline CD dengan metrik observabilitas (SLO/error rate); batalkan deployment secara otomatis jika ambang batas error terlampaui.
+- **Pola Expand and Contract untuk Database**: Jangan pernah merilis migrasi skema database yang memutus kompatibilitas mundur (*breaking changes*); pisahkan penambahan kolom dan penghapusan kolom dalam siklus rilis bertahap.

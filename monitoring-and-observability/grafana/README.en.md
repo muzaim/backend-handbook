@@ -128,8 +128,11 @@ Telemetry for monitoring the Grafana server instance itself:
 
 ## 9. Real-World Case Studies
 
-- **CERN (European Organization for Nuclear Research)**: Operates Grafana to monitor thousands of computer nodes and sensor telemetry on the Large Hadron Collider (LHC), tracking millions of operational data points in real time.
-- **Uber Microservices Fleet**: Uber integrates Grafana with their scalable metrics tier (M3DB) to visualize health across hundreds of thousands of backend containers and mobile driver fleets globally.
+### Unifying the Three Pillars of Observability (Metrics, Logs, and Traces) into Incident War Rooms
+
+- **The Engineering Problem**: A multinational e-commerce company suffered severe operational friction during production outages: infrastructure teams inspected metrics in isolated Prometheus UIs, backend developers queried logs separately in Elasticsearch, and SREs analyzed distributed traces in Jaeger. When user checkout flows degraded during high-traffic sales, engineers spent 45 minutes manually correlating disparate timestamps and transaction IDs across 4 disconnected web consoles (*context-switching exhaustion*).
+- **The Architectural Solution**: The SRE organization unified telemetry into a centralized *Single Pane of Glass* using *Grafana*. They federated three distinct data backends: numerical metrics via PromQL (Prometheus), structured log streams via LogQL (Grafana Loki), and distributed trace spans (Grafana Tempo). The team configured *Data Links*: clicking a latency spike on an API metric graph instantly jumped the engineer directly to the specific trace span in Tempo, which in turn seamlessly opened the precise error log line in Loki with matching trace IDs. Dashboards were managed declaratively as code (*Dashboard-as-Code*) using Terraform.
+- **The System Outcome**: Mean Time to Resolve (MTTR) during production outages plummeted from 45 minutes to 4 minutes. Cognitive load on on-call engineers was minimized through automated cross-telemetry correlation, and monitoring backend load dropped by 30% thanks to Grafana's multi-tenant query caching layer.
 
 ## 10. Interesting Facts & Production Gotchas
 
@@ -138,3 +141,10 @@ Telemetry for monitoring the Grafana server instance itself:
   *Production Golden Rule:* Cap dashboard auto-refresh intervals in production to at least **`30s`** or **`1m`**.
 - **Datasource Query Caching**:  
   In modern Grafana deployments, enable **Query Caching** on shared datasources. If 10 on-call engineers open the same incident dashboard simultaneously, Grafana issues only 1 upstream query to Prometheus and serves cached results to the other 9 engineers.
+
+## 11. Key Takeaways
+
+- **Unified Single Pane of Glass**: Grafana visualizes diverse datasources (Prometheus, Loki, Tempo, PostgreSQL, Elasticsearch) within unified interactive panels without centralizing raw storage.
+- **Seamless Telemetry Correlation**: Leverage Data Links to navigate seamlessly from numerical metric anomalies directly to distributed traces and associated log lines in a single click.
+- **Throttle Dashboard Auto-Refresh Rates**: Avoid setting display TV dashboards to 1-5 second auto-refreshes; enforce 30-60 second intervals to avoid self-inflicted denial-of-service on upstream datasources.
+- **Manage Dashboards as Code**: Store dashboard specifications as JSON or declarative code (Terraform / Grafonnet) in version control to ensure auditability, peer review, and disaster recovery.

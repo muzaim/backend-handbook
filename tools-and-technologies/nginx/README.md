@@ -176,8 +176,11 @@ Metrik wajib di Grafana melalui `nginx-prometheus-exporter`:
 
 ## 9. Studi Kasus Nyata di Industri
 
--   **Cloudflare CDN Edge**: Sebagian besar infrastruktur awal CDN global Cloudflare dibangun dan disesuaikan dari basis NGINX yang dimodifikasi menggunakan modul Lua (OpenResty) untuk menangani jutaan request per detik di ratusan PoP dunia.
--   **Netflix Open Connect**: CDN privat milik Netflix yang menempatkan server appliance langsung di ISP-ISP seluruh dunia menggunakan NGINX dan FreeBSD untuk mengalirkan lebih dari 100 Terabit per detik lalu lintas video streaming global.
+### Penanganan 250.000 RPS Ingress Traffic dan Terminasi SSL Terpusat pada E-Commerce Skala Besar
+
+- **Tantangan Rekayasa Riil (The Problem)**: Sebuah portal e-commerce nasional menghadapi lonjakan trafik hingga 250.000 request per detik saat festival belanja tanggal kembar. Awalnya, enkripsi SSL/TLS dan kompresi gzip dieksekusi langsung di dalam container aplikasi Go dan Node.js. Beban berat kriptografi handshake TLS dan kompresi payload menghabiskan 60% siklus CPU pod aplikasi, memicu *garbage collection pauses*, menurunkan throughput API hingga 50%, dan menaikkan latensi p99 checkout dari 120 ms menjadi 4.500 ms.
+- **Implementasi Solusi Industri (The Architectural Solution)**: Tim menempatkan cluster *NGINX Reverse Proxy* sebagai lapisan edge ingress terdepan. NGINX dikonfigurasi menggunakan arsitektur *event-driven non-blocking* (epoll), worker processes disesuaikan dengan jumlah CPU core fisik, dan `worker_rlimit_nofile` dinaikkan ke 65535. Seluruh kalkulasi enkripsi HTTPS di-offload ke NGINX dengan session caching SSL (`ssl_session_cache shared:SSL:50m`) dan dukungan HTTP/2. Aset statis (gambar produk dan bundel JS) disajikan langsung dari memory disk cache NGINX dengan header `sendfile on;` dan `tcp_nopush on;`.
+- **Dampak & Hasil Sistem (The Outcome)**: Konsumsi CPU pada server aplikasi backend anjlok dari 85% menjadi 22%, membebaskan seluruh daya komputasi container untuk logika bisnis. Waktu handshake TLS berkurang 70% berkat session resumption. Latensi p99 seluruh gateway API turun ke angka stabil 45 ms, dan NGINX melayani 250.000 RPS secara mulus hanya dengan 4 instans compute c5.2xlarge.
 
 ## 10. Fakta Menarik & Gotchas Production
 
@@ -188,3 +191,10 @@ Metrik wajib di Grafana melalui `nginx-prometheus-exporter`:
     Secara default, NGINX hanya me-resolve nama domain upstream (misal `server backend.internal.com;`) **SATU KALI saat NGINX pertama kali startup**! Jika backend-mu berada di AWS ALB atau Kubernetes Service yang IP-nya berganti secara berkala, NGINX akan terus mengirim request ke alamat IP lama yang sudah mati, menghasilkan error `502 Bad Gateway`!  
     _Solusi Wajib:_ Gunakan variabel proxy pass bersama direktif resolver:  
     `resolver 10.0.0.2 valid=10s; set $upstream_endpoint "http://backend.internal.com"; proxy_pass $upstream_endpoint;`
+
+## 11. Rangkuman Singkat
+
+- **Arsitektur Event-Driven Berkinerja Ekstrem**: NGINX menggunakan event loop asynchronous (epoll/kqueue) yang mampu melayani puluhan ribu koneksi konkuren per worker process dengan konsumsi RAM yang sangat minim.
+- **Offload SSL/TLS dan Kompresi di Edge**: Bebaskan server aplikasi backend dari beban kriptografi; pusatkan terminasi sertifikat HTTPS, HTTP/2 termination, dan kompresi gzip/brotli di layer reverse proxy NGINX.
+- **Penyajian File Statis Berkecepatan Tinggi**: Manfaatkan direktif `sendfile on;` dan `tcp_nopush on;` agar Linux kernel mentransfer byte data dari disk langsung ke socket jaringan tanpa menyalinnya ke user-space buffer.
+- **Sinkronkan Limit File Descriptor OS**: Pastikan direktif `worker_rlimit_nofile` diatur sejajar dengan kapasitas `worker_connections` agar server tidak kehabisan soket dan crash dengan error `24: Too many open files`.
